@@ -1,35 +1,35 @@
 env: prod
 http:
-  host: 0.0.0.0
-  #  host: 127.0.0.1
+  #  host: 0.0.0.0
+  host: 127.0.0.1
   port: 8000
 security:
   api_sign:
-    app_key: 123456
-    app_security: 123456
+    app_key: azure-vm
+    app_security: OUSPaipkAKf45eY7t0JdDgtk62KpBwfgAaiWc
   jwt:
-    key: QQYnRFerJTSEcrfB89fw8prOaObmrch8
+    key: rHUYpr3qnd5si8f59Hw2iycxV3V2iMrpPwLd
 data:
   db:
     user:
       driver: sqlite
-      dsn: storage/nunu-test.db?_busy_timeout=5000
+      dsn: storage/azure-vm.db?_busy_timeout=5000
   #    user:
   #      driver: mysql
   #      dsn: root:123456@tcp(127.0.0.1:3380)/user?charset=utf8mb4&parseTime=True&loc=Local
   #    user:
   #      driver: postgres
   #      dsn: host=localhost user=gorm password=gorm dbname=gorm port=9920 sslmode=disable TimeZone=Asia/Shanghai
-  redis:
-    addr: 127.0.0.1:6350
-    password: ""
-    db: 0
-    read_timeout: 0.2s
-    write_timeout: 0.2s
+#  redis:
+#    addr: 127.0.0.1:6350
+#    password: ""
+#    db: 0
+#    read_timeout: 0.2s
+#    write_timeout: 0.2s
 
 log:
-  log_level: info
-  encoding: json           # json or console
+  log_level: debug
+  encoding: console           # json or console
   log_file_name: "./storage/logs/server.log"
   max_backups: 30
   max_age: 7
