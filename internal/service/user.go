@@ -37,10 +37,10 @@ func (s *userService) Register(ctx context.Context, req *v1.RegisterRequest) err
 	if err != nil {
 		return v1.ErrInternalServerError
 	}
-	if err == nil && user != nil {
+	if user != nil {
 		return v1.ErrEmailAlreadyUse
 	}
-
+	// todo 只允许存在一个用户
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
@@ -94,6 +94,7 @@ func (s *userService) GetProfile(ctx context.Context, userId string) (*v1.GetPro
 	return &v1.GetProfileResponseData{
 		UserId:   user.UserId,
 		Nickname: user.Nickname,
+		Roles:    []string{"admin"},
 	}, nil
 }
 
