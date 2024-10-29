@@ -38,9 +38,8 @@ func (s *userService) Register(ctx context.Context, req *v1.RegisterRequest) err
 		return v1.ErrInternalServerError
 	}
 	if user != nil {
-		return v1.ErrEmailAlreadyUse
+		return v1.ErrUserAlreadyExist
 	}
-	// todo 只允许存在一个用户
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return err
