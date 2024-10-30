@@ -23,16 +23,19 @@ var repositorySet = wire.NewSet(
 	repository.NewRepository,
 	repository.NewTransaction,
 	repository.NewUserRepository,
+	repository.NewAccountsRepository,
 )
 
 var serviceSet = wire.NewSet(
 	service.NewService,
 	service.NewUserService,
+	service.NewAccountsService,
 )
 
 var handlerSet = wire.NewSet(
 	handler.NewHandler,
 	handler.NewUserHandler,
+	handler.NewAccountsHandler,
 )
 
 var serverSet = wire.NewSet(
@@ -48,7 +51,7 @@ func newApp(
 ) *app.App {
 	return app.NewApp(
 		app.WithServer(httpServer, job),
-		app.WithName("demo-server"),
+		app.WithName("server"),
 	)
 }
 
