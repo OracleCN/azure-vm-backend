@@ -33,9 +33,9 @@ CREATE TABLE azure_accounts (
                                 login_password VARCHAR(128) NOT NULL,    -- Azure登录密码（建议加密存储）
                                 remark TEXT,                             -- 备注信息
                                 app_id VARCHAR(128) NOT NULL,            -- Azure APP ID
-                                app_password VARCHAR(256) NOT NULL,      -- Azure APP密码
-                                tenant_id VARCHAR(128) NOT NULL,         -- Azure Tenant ID
-                                subscription_id VARCHAR(128) NOT NULL,    -- Azure Subscription ID
+                                password VARCHAR(256) NOT NULL,      -- Azure APP密码
+                                tenant VARCHAR(128) NOT NULL,         -- Azure Tenant ID
+                                display_name VARCHAR(128) NOT NULL,    -- Azure Subscription ID
                                 subscription_status VARCHAR(32) NOT NULL DEFAULT 'normal',  -- 订阅状态：normal/error
                                 created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                                 updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
