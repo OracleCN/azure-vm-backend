@@ -19,7 +19,7 @@ type AccountsService interface {
 	CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) error
 	GetAccount(ctx context.Context, userId string, loginMail string) (*model.Accounts, error)
 	GetAccountList(ctx context.Context, userId string) ([]*model.Accounts, error)
-	DeleteAccount(ctx context.Context, userId string, accountId string) error
+	DeleteAccount(ctx context.Context, userId string, accountIds []string) error
 	UpdateAccount(ctx context.Context, userId string, accountId string, req *v1.UpdateAccountReq) error
 }
 
