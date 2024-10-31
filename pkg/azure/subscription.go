@@ -171,7 +171,7 @@ func (f *Fetcher) FetchSubscriptionDetails(ctx context.Context) ([]SubscriptionD
 
 				// 处理基本信息
 				if subscription.ID != nil {
-					detail.SubscriptionID = *subscription.ID
+					detail.SubscriptionID = extractSubscriptionID(*subscription.ID)
 				}
 				if subscription.DisplayName != nil {
 					detail.DisplayName = *subscription.DisplayName
