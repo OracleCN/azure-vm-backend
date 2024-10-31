@@ -19,4 +19,7 @@ var (
 
 	// ErrAccountEmailDuplicate 错误帐户电子邮件重复
 	ErrAccountEmailDuplicate = newError(1004, "error account email duplicates")
+
+	// ErrorAzureNotFound 当前用户不存在这个azure账户
+	ErrorAzureNotFound = newError(1005, "This azure account does not exist for the current user")
 )

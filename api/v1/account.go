@@ -18,3 +18,14 @@ type CreateAccountResp struct {
 	Remark     string `json:"remark"`      // 备注
 	Status     string `json:"status"`      // 状态
 }
+
+// UpdateAccountReq 在 v1 包中定义请求结构
+type UpdateAccountReq struct {
+	LoginEmail    string `json:"loginEmail,omitempty"`
+	LoginPassword string `json:"loginPassword,omitempty"`
+	Remark        string `json:"remark,omitempty"`
+	AppID         string `json:"appId,omitempty"`
+	PassWord      string `json:"password,omitempty"`
+	Tenant        string `json:"tenant,omitempty"`
+	DisplayName   string `json:"displayName,omitempty"`
+}

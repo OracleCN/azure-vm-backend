@@ -11,6 +11,11 @@ import (
 type AccountsRepository interface {
 	GetAccountByEmail(ctx context.Context, email string) (*model.Accounts, error)
 	Create(ctx context.Context, account *model.Accounts) error
+	GetAccountByUserIdAndEmail(ctx context.Context, userId string, email string) (*model.Accounts, error)
+	GetAccountsByUserId(ctx context.Context, userId string) ([]*model.Accounts, error)
+	DeleteAccount(ctx context.Context, userId string, accountId string) error
+	UpdateAccount(ctx context.Context, userId string, accountId string, updates map[string]interface{}) error
+	BatchDeleteAccounts(ctx context.Context, userId string, accountIds []string) (int64, error)
 }
 
 func NewAccountsRepository(
@@ -67,4 +72,79 @@ func (r *accountsRepository) Create(ctx context.Context, account *model.Accounts
 
 		return nil
 	})
+}
+
+// GetAccountByUserIdAndEmail 根据用户id和邮箱获取账户信息
+func (r *Repository) GetAccountByUserIdAndEmail(ctx context.Context, userId string, email string) (*model.Accounts, error) {
+	var account model.Accounts
+
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND login_email = ?", userId, email).
+		First(&account)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &account, nil
+}
+
+func (r *Repository) GetAccountsByUserId(ctx context.Context, userId string) ([]*model.Accounts, error) {
+	var accounts []*model.Accounts
+
+	result := r.db.WithContext(ctx).
+		Where("user_id = ?", userId).
+		Find(&accounts)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return accounts, nil
+}
+
+func (r *Repository) DeleteAccount(ctx context.Context, userId string, accountId string) error {
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND account_id = ?", userId, accountId).
+		Delete(&model.Accounts{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+
+func (r *Repository) UpdateAccount(ctx context.Context, userId string, accountId string, updates map[string]interface{}) error {
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND account_id = ?", userId, accountId).
+		Updates(updates)
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}
+func (r *Repository) BatchDeleteAccounts(ctx context.Context, userId string, accountIds []string) (int64, error) {
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND account_id IN ?", userId, accountIds).
+		Delete(&model.Accounts{})
+
+	if result.Error != nil {
+		return 0, result.Error
+	}
+
+	return result.RowsAffected, nil
 }
