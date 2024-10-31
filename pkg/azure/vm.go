@@ -220,23 +220,23 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 
 	// 检查基础对象
 	if vm == nil {
-		return details, fmt.Errorf("vm object is nil")
+		return details, fmt.Errorf("虚拟机对象为空")
 	}
 
 	// 处理必需字段
 	if vm.ID == nil {
-		return details, fmt.Errorf("vm ID is nil")
+		return details, fmt.Errorf("虚拟机 ID 为空")
 	}
 	details.ID = *vm.ID
 	details.ResourceGroup = extractResourceGroupFromID(details.ID)
 
 	if vm.Name == nil {
-		return details, fmt.Errorf("vm Name is nil")
+		return details, fmt.Errorf("vm 名称为空")
 	}
 	details.Name = *vm.Name
 
 	if vm.Location == nil {
-		return details, fmt.Errorf("vm Location is nil")
+		return details, fmt.Errorf("vm 位置为空")
 	}
 	details.Location = *vm.Location
 
@@ -423,7 +423,7 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 		}
 	}
 	// 记录获取到的VM详情
-	f.logger.Debug("VM details extracted",
+	f.logger.Debug("提取的虚拟机详细信息",
 		zap.String("vmName", details.Name),
 		zap.String("location", details.Location),
 		zap.String("size", details.Size),
