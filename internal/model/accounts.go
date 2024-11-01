@@ -12,6 +12,7 @@ type Accounts struct {
 	AppID              string `gorm:"column:app_id;type:varchar(128);not null" json:"appId"`
 	PassWord           string `gorm:"column:password;type:varchar(256);not null" json:"password"`
 	Tenant             string `gorm:"column:tenant;type:varchar(128);not null" json:"tenant"`
+	VmCount            int    `gorm:"column:vm_count;type:int;not null" json:"vmCount"`
 	DisplayName        string `gorm:"column:display_name;type:varchar(128);not null" json:"displayName"`
 	SubscriptionStatus string `gorm:"column:subscription_status;type:varchar(32);index;default:normal;not null" json:"subscription_status"`
 }

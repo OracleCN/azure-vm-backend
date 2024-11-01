@@ -68,8 +68,15 @@ func NewHTTPServer(
 		// Strict permission routing group
 		strictAuthRouter := v1.Group("/").Use(middleware.StrictAuth(jwt, logger))
 		{
-			strictAuthRouter.PUT("/user", userHandler.UpdateProfile)
-			strictAuthRouter.POST("/account/create", accountsHandler.CreateAccounts)
+			// 用户接口
+			strictAuthRouter.POST("/user", userHandler.UpdateProfile)
+			// 账户接口
+			strictAuthRouter.POST("/accounts/create", accountsHandler.CreateAccounts)
+			strictAuthRouter.POST("/accounts/delete", accountsHandler.DeleteAccounts)
+			strictAuthRouter.POST("/accounts/list", accountsHandler.ListAccounts)
+
+			strictAuthRouter.POST("/accounts/:id", accountsHandler.UpdateAccount)
+			strictAuthRouter.GET("/accounts/:id", accountsHandler.GetAccount)
 		}
 	}
 

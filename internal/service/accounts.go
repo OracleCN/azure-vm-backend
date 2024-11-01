@@ -73,8 +73,6 @@ func (s *accountsService) CreateAccount(ctx context.Context, userId string, req 
 		)
 		return fmt.Errorf("azure验证失败: %s", result.Message)
 	}
-	// 获取订阅类型
-
 	// 3. 创建账号记录
 	account := &model.Accounts{
 		AccountID:          uuid.New().String(),
@@ -86,6 +84,7 @@ func (s *accountsService) CreateAccount(ctx context.Context, userId string, req 
 		PassWord:           req.PassWord,
 		Tenant:             req.Tenant,
 		DisplayName:        req.DisplayName,
+		VmCount:            req.VmCount,
 		SubscriptionStatus: "normal",
 	}
 
