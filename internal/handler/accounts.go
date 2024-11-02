@@ -5,7 +5,6 @@ import (
 	"azure-vm-backend/internal/service"
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"strings"
 )
 
 type AccountsHandler struct {
@@ -173,7 +172,7 @@ func (h *AccountsHandler) UpdateAccount(ctx *gin.Context) {
 // @Security Bearer
 // @Param ids query string true "账户ID列表,多个ID用逗号分隔"
 // @Success 200 {object} v1.Response
-// @Router /accounts/delete [get]
+// @Router /accounts/delete [delete]
 func (h *AccountsHandler) DeleteAccounts(ctx *gin.Context) {
 	// 获取用户id
 	userId := GetUserIdFromCtx(ctx)
@@ -182,15 +181,13 @@ func (h *AccountsHandler) DeleteAccounts(ctx *gin.Context) {
 		return
 	}
 
-	// 获取账户ID列表
-	idsStr := ctx.Query("ids")
-	if idsStr == "" {
+	// 直接绑定请求体中的数组
+	var accountIds []string
+	if err := ctx.ShouldBindJSON(&accountIds); err != nil {
 		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
 		return
 	}
 
-	// 分割ID字符串为切片
-	accountIds := strings.Split(idsStr, ",")
 	if len(accountIds) == 0 {
 		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
 		return

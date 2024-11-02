@@ -1,60 +1,36 @@
-CREATE TABLE users (
-                       id INTEGER PRIMARY KEY AUTOINCREMENT,
-                       user_id VARCHAR(32) UNIQUE NOT NULL,
-                       nickname VARCHAR(32) NOT NULL,
-                       password VARCHAR(64) NOT NULL,
-                       email VARCHAR(128) NOT NULL,
-                       created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                       updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                       deleted_at DATETIME DEFAULT NULL
+-- auto-generated definition
+create table accounts
+(
+    id                  INTEGER
+        primary key autoincrement,
+    account_id          VARCHAR(32)                           not null
+        unique,
+    user_id             VARCHAR(32)                           not null,
+    login_email         VARCHAR(128)                          not null,
+    login_password      VARCHAR(128)                          not null,
+    remark              TEXT,
+    app_id              VARCHAR(128)                          not null,
+    password            VARCHAR(256)                          not null,
+    tenant              VARCHAR(128)                          not null,
+    display_name        VARCHAR(128)                          not null,
+    subscription_status VARCHAR(32) default 'normal'          not null,
+    created_at          DATETIME    default CURRENT_TIMESTAMP not null,
+    updated_at          DATETIME    default CURRENT_TIMESTAMP not null,
+    deleted_at          DATETIME    default NULL,
+    vm_count            integer     default 0,
+    constraint chk_subscription_status
+        check (subscription_status IN ('normal', 'error'))
 );
 
--- 创建索引
-CREATE INDEX idx_users_deleted_at ON users(deleted_at);
-CREATE INDEX idx_users_user_id ON users(user_id);
-CREATE INDEX idx_users_email ON users(email);
+create index idx_azure_accounts_deleted_at
+    on accounts (deleted_at);
 
--- 触发器：自动更新 updated_at 字段
-CREATE TRIGGER trig_users_updated_at
-    AFTER UPDATE ON users
-BEGIN
-    UPDATE users SET updated_at = CURRENT_TIMESTAMP
-    WHERE id = NEW.id;
-END;
+create index idx_azure_accounts_login_email
+    on accounts (login_email);
 
--- azure
+create index idx_azure_accounts_subscription_status
+    on accounts (subscription_status);
 
--- Azure账号表
-CREATE TABLE azure_accounts (
-                                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                                account_id VARCHAR(32) UNIQUE NOT NULL,  -- 账号唯一标识符
-                                user_id VARCHAR(32) NOT NULL,            -- 关联到users表的user_id
-                                login_email VARCHAR(128) NOT NULL,       -- Azure登录邮箱
-                                login_password VARCHAR(128) NOT NULL,    -- Azure登录密码（建议加密存储）
-                                remark TEXT,                             -- 备注信息
-                                app_id VARCHAR(128) NOT NULL,            -- Azure APP ID
-                                password VARCHAR(256) NOT NULL,      -- Azure APP密码
-                                tenant VARCHAR(128) NOT NULL,         -- Azure Tenant ID
-                                display_name VARCHAR(128) NOT NULL,    -- Azure Subscription ID
-                                subscription_status VARCHAR(32) NOT NULL DEFAULT 'normal',  -- 订阅状态：normal/error
-                                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                                deleted_at DATETIME DEFAULT NULL,
+create index idx_azure_accounts_user_id
+    on accounts (user_id);
 
-    -- 检查约束
-                                CONSTRAINT chk_subscription_status CHECK (subscription_status IN ('normal', 'error'))
-);
-
--- 创建索引
-CREATE INDEX idx_azure_accounts_user_id ON azure_accounts(user_id);
-CREATE INDEX idx_azure_accounts_login_email ON azure_accounts(login_email);
-CREATE INDEX idx_azure_accounts_deleted_at ON azure_accounts(deleted_at);
-CREATE INDEX idx_azure_accounts_subscription_status ON azure_accounts(subscription_status);
-
--- 创建更新时间触发器
-CREATE TRIGGER trig_azure_accounts_updated_at
-    AFTER UPDATE ON azure_accounts
-BEGIN
-    UPDATE azure_accounts SET updated_at = CURRENT_TIMESTAMP
-    WHERE id = NEW.id;
-END;

@@ -47,7 +47,7 @@ func NewHTTPServer(
 	s.GET("/", func(ctx *gin.Context) {
 		logger.WithContext(ctx).Info("hello")
 		apiV1.HandleSuccess(ctx, map[string]interface{}{
-			":)": "Thank you for using nunu!",
+			":)": "Thank you for using Azure-VM-Backend",
 		})
 	})
 
@@ -72,10 +72,10 @@ func NewHTTPServer(
 			strictAuthRouter.POST("/user", userHandler.UpdateProfile)
 			// 账户接口
 			strictAuthRouter.POST("/accounts/create", accountsHandler.CreateAccounts)
-			strictAuthRouter.POST("/accounts/delete", accountsHandler.DeleteAccounts)
+			strictAuthRouter.DELETE("/accounts/delete", accountsHandler.DeleteAccounts)
 			strictAuthRouter.POST("/accounts/list", accountsHandler.ListAccounts)
 
-			strictAuthRouter.POST("/accounts/:id", accountsHandler.UpdateAccount)
+			strictAuthRouter.POST("/accounts/update/:id", accountsHandler.UpdateAccount)
 			strictAuthRouter.GET("/accounts/:id", accountsHandler.GetAccount)
 		}
 	}
