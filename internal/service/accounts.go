@@ -21,6 +21,7 @@ type AccountsService interface {
 	GetAccountList(ctx context.Context, userId string) ([]*model.Accounts, error)
 	DeleteAccount(ctx context.Context, userId string, accountIds []string) error
 	UpdateAccount(ctx context.Context, userId string, accountId string, req *v1.UpdateAccountReq) error
+	GetAccountInfo(ctx context.Context, userId string, accountId string) error
 }
 
 func NewAccountsService(
@@ -249,5 +250,21 @@ func (s *accountsService) UpdateAccount(ctx context.Context, userId string, acco
 		zap.String("user_id", userId),
 		zap.String("account_id", accountId),
 	)
+	return nil
+}
+
+func (s *accountsService) GetAccountInfo(ctx context.Context, userId string, accountId string) error {
+	// 获取账户的资源数据
+	account, err := s.accountsRepo.GetAccountByUserIdAndAccountId(ctx, userId, accountId)
+	if err != nil {
+		s.logger.Error("获取账户信息失败",
+			zap.Error(err),
+			zap.String("user_id", userId),
+			zap.String("account_id", accountId),
+		)
+		return v1.ErrInternalServerError
+	}
+	// 取出 account的 app_id, password, tenant 三个字段数据 用于来获取资源数据
+
 	return nil
 }

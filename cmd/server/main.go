@@ -11,9 +11,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// @title           Nunu Example API
+// @title           Azure VM Backend API
 // @version         1.0.0
-// @description     This is a sample server celler server.
+// @description     This is a Azure VM Sserver.
 // @termsOfService  http://swagger.io/terms/
 // @contact.name   API Support
 // @contact.url    http://www.swagger.io/support

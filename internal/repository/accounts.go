@@ -13,6 +13,7 @@ type AccountsRepository interface {
 	Create(ctx context.Context, account *model.Accounts) error
 	GetAccountByUserIdAndEmail(ctx context.Context, userId string, email string) (*model.Accounts, error)
 	GetAccountsByUserId(ctx context.Context, userId string) ([]*model.Accounts, error)
+	GetAccountByUserIdAndAccountId(ctx context.Context, userId string, accountId string) (*model.Accounts, error)
 	DeleteAccount(ctx context.Context, userId string, accountId string) error
 	UpdateAccount(ctx context.Context, userId string, accountId string, updates map[string]interface{}) error
 	BatchDeleteAccounts(ctx context.Context, userId string, accountIds []string) (int64, error)
@@ -147,4 +148,20 @@ func (r *Repository) BatchDeleteAccounts(ctx context.Context, userId string, acc
 	}
 
 	return result.RowsAffected, nil
+}
+func (r *Repository) GetAccountByUserIdAndAccountId(ctx context.Context, userId string, accountId string) (*model.Accounts, error) {
+	var account model.Accounts
+
+	result := r.db.WithContext(ctx).
+		Where("user_id = ? AND account_id = ?", userId, accountId).
+		First(&account)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &account, nil
 }
