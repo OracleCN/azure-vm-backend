@@ -25,4 +25,6 @@ var (
 
 	// ErrSubscriptionNotFound 没有找到可用订阅
 	ErrSubscriptionNotFound = newError(1006, "no Available Subscriptions Found")
+
+	ErrNotImplemented = newError(1007, "Not Implemented")
 )
