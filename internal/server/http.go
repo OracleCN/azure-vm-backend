@@ -20,6 +20,7 @@ func NewHTTPServer(
 	jwt *jwt.JWT,
 	userHandler *handler.UserHandler,
 	accountsHandler *handler.AccountsHandler,
+	subHandler *handler.SubscriptionsHandler,
 ) *http.Server {
 	gin.SetMode(gin.DebugMode)
 	s := http.NewServer(
@@ -77,6 +78,16 @@ func NewHTTPServer(
 
 			strictAuthRouter.POST("/accounts/update/:id", accountsHandler.UpdateAccount)
 			strictAuthRouter.GET("/accounts/:id", accountsHandler.GetAccount)
+
+			// 订阅接口
+			// 获取指定账号的所有订阅
+			strictAuthRouter.GET("/subscriptions/:accountId", subHandler.GetSubscriptions)
+			// 获取指定订阅的详细信息
+			strictAuthRouter.GET("/subscriptions/:accountId/:subscriptionId", subHandler.GetSubscription)
+			// 同步指定账号的订阅信息
+			strictAuthRouter.POST("/subscriptions/:accountId/sync", subHandler.SyncSubscriptions)
+			// 删除指定账号的所有订阅信息
+			strictAuthRouter.DELETE("/subscriptions/:accountId", subHandler.DeleteSubscriptions)
 		}
 	}
 

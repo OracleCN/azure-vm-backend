@@ -5,7 +5,6 @@ import (
 	"azure-vm-backend/internal/model"
 	"azure-vm-backend/internal/repository"
 	"azure-vm-backend/pkg/azure"
-	"azure-vm-backend/pkg/log"
 	"context"
 	"go.uber.org/zap"
 	"time"
@@ -42,7 +41,6 @@ type subscriptionsService struct {
 	*Service
 	subscriptionRepository repository.SubscriptionsRepository
 	accountsRepository     repository.AccountsRepository
-	logger                 *log.Logger
 }
 
 // GetSubscriptions 获取指定账号的所有订阅信息

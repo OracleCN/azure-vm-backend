@@ -10,16 +10,16 @@ import (
 // Subscriptions Subscription 订阅信息模型
 type Subscriptions struct {
 	gorm.Model
-	AccountID            string     `gorm:"column:account_id;type:varchar(32);not null" json:"accountId"`
-	SubscriptionID       string     `gorm:"column:subscription_id;type:varchar(36);not null" json:"subscriptionId"`
-	DisplayName          string     `gorm:"column:display_name;type:varchar(128);not null" json:"displayName"`
-	State                string     `gorm:"column:state;type:varchar(32);not null" json:"state"`
-	SubscriptionPolicies string     `gorm:"column:subscription_policies;type:text" json:"subscriptionPolicies"`
-	AuthorizationSource  string     `gorm:"column:authorization_source;type:varchar(32)" json:"authorizationSource"`
-	SubscriptionType     string     `gorm:"column:subscription_type;type:varchar(32)" json:"subscriptionType"`
-	SpendingLimit        string     `gorm:"column:spending_limit;type:varchar(32)" json:"spendingLimit"`
-	StartDate            *time.Time `gorm:"column:start_date" json:"startDate"`
-	EndDate              *time.Time `gorm:"column:end_date" json:"endDate"`
+	AccountID            string     `gorm:"column:account_id;type:varchar(32);not null;uniqueIndex:idx_account_subscription"`
+	SubscriptionID       string     `gorm:"column:subscription_id;type:varchar(32);not null;uniqueIndex:idx_account_subscription"`
+	DisplayName          string     `gorm:"column:display_name;type:varchar(128);not null"`
+	State                string     `gorm:"column:state;type:varchar(32);not null"`
+	SubscriptionPolicies string     `gorm:"column:subscription_policies;type:text"`
+	AuthorizationSource  string     `gorm:"column:authorization_source;type:varchar(32)"`
+	SubscriptionType     string     `gorm:"column:subscription_type;type:varchar(32)"`
+	SpendingLimit        string     `gorm:"column:spending_limit;type:varchar(32)"`
+	StartDate            *time.Time `gorm:"column:start_date"`
+	EndDate              *time.Time `gorm:"column:end_date"`
 }
 
 func (s *Subscriptions) TableName() string {

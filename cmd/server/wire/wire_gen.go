@@ -36,7 +36,10 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 	accountsRepository := repository.NewAccountsRepository(repositoryRepository)
 	accountsService := service.NewAccountsService(serviceService, accountsRepository)
 	accountsHandler := handler.NewAccountsHandler(handlerHandler, accountsService)
-	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler)
+	subscriptionsRepository := repository.NewSubscriptionsRepository(repositoryRepository)
+	subscriptionsService := service.NewSubscriptionsService(serviceService, subscriptionsRepository, accountsRepository)
+	subscriptionsHandler := handler.NewSubscriptionsHandler(handlerHandler, subscriptionsService)
+	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler)
 	job := server.NewJob(logger)
 	appApp := newApp(httpServer, job)
 	return appApp, func() {
@@ -45,11 +48,11 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 
 // wire.go:
 
-var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository)
+var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository, repository.NewSubscriptionsRepository)
 
-var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService)
+var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService, service.NewSubscriptionsService)
 
-var handlerSet = wire.NewSet(handler.NewHandler, handler.NewUserHandler, handler.NewAccountsHandler)
+var handlerSet = wire.NewSet(handler.NewHandler, handler.NewUserHandler, handler.NewAccountsHandler, handler.NewSubscriptionsHandler)
 
 var serverSet = wire.NewSet(server.NewHTTPServer, server.NewJob)
 

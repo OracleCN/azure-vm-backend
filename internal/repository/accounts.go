@@ -125,6 +125,7 @@ func (r *Repository) DeleteAccount(ctx context.Context, userId string, accountId
 
 func (r *Repository) UpdateAccount(ctx context.Context, userId string, accountId string, updates map[string]interface{}) error {
 	result := r.db.WithContext(ctx).
+		Model(&model.Accounts{}).
 		Where("user_id = ? AND account_id = ?", userId, accountId).
 		Updates(updates)
 
