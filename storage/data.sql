@@ -54,3 +54,41 @@ CREATE TABLE subscriptions (
 
 CREATE INDEX idx_subs_account_id ON subscriptions(account_id);
 CREATE INDEX idx_subs_subscription_id ON subscriptions(subscription_id);
+
+
+create table virtual_machines
+(
+    id              INTEGER primary key autoincrement,
+    vm_id           VARCHAR(128)                          not null unique,
+    account_id      VARCHAR(32)                           not null,
+    subscription_id VARCHAR(128)                          not null,
+    name            VARCHAR(128)                          not null,
+    resource_group  VARCHAR(128)                          not null,
+    location        VARCHAR(64)                           not null,
+    size           VARCHAR(64)                           not null,
+    status         VARCHAR(32)                           not null default 'Running',
+    state          VARCHAR(32)                           not null,
+    private_ips    TEXT,                                          -- JSON array of strings
+    public_ips     TEXT,                                          -- JSON array of strings
+    os_type        VARCHAR(32),
+    os_disk_size   INTEGER,
+    data_disks     TEXT,                                          -- JSON array of disk objects
+    tags           TEXT,                                          -- JSON object of key-value pairs
+    sync_status    VARCHAR(32)                           not null default 'pending',
+    last_sync_at   DATETIME,
+    created_at     DATETIME                              not null default CURRENT_TIMESTAMP,
+    updated_at     DATETIME                              not null default CURRENT_TIMESTAMP,
+    deleted_at     DATETIME,
+    -- 添加必要的索引
+    constraint idx_vm_account_subscription unique (account_id, subscription_id, name),
+    constraint idx_vm_sync_status check (sync_status in ('pending', 'syncing', 'success', 'error')),
+    constraint idx_vm_status check (status in ('Starting', 'Running', 'Stopping', 'Stopped', 'Deallocating', 'Deallocated')),
+    foreign key (account_id) references accounts(account_id),
+    foreign key (subscription_id) references subscriptions(subscription_id)
+);
+
+-- 创建索引
+create index idx_vm_account_id on virtual_machines(account_id);
+create index idx_vm_subscription_id on virtual_machines(subscription_id);
+create index idx_vm_sync_status on virtual_machines(sync_status);
+create index idx_vm_status on virtual_machines(status);
