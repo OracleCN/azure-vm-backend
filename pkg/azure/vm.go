@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"azure-vm-backend/pkg/log"
 	"context"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -55,12 +54,12 @@ type DiskInfo struct {
 // VMFetcher 用于获取虚拟机信息的结构体
 type VMFetcher struct {
 	credentials *Credentials
-	logger      *log.Logger
+	logger      *zap.Logger // 改为使用 zap.Logger
 	timeout     time.Duration
 }
 
 // NewVMFetcher 创建一个新的虚拟机信息获取器
-func NewVMFetcher(credentials *Credentials, logger *log.Logger, timeout time.Duration) *VMFetcher {
+func NewVMFetcher(credentials *Credentials, logger *zap.Logger, timeout time.Duration) *VMFetcher {
 	if timeout == 0 {
 		timeout = 60 * time.Second // 默认超时时间
 	}

@@ -1,7 +1,6 @@
 package azure
 
 import (
-	"azure-vm-backend/pkg/log"
 	"context"
 	"errors"
 	"fmt"
@@ -40,13 +39,13 @@ type SubscriptionDetail struct {
 // Fetcher Azure数据获取器
 type Fetcher struct {
 	credentials *Credentials
-	logger      *log.Logger
+	logger      *zap.Logger
 	timeout     time.Duration
 	mutex       sync.RWMutex
 }
 
 // NewFetcher 创建新的Azure数据获取器实例
-func NewFetcher(credentials *Credentials, logger *log.Logger, timeout time.Duration) *Fetcher {
+func NewFetcher(credentials *Credentials, logger *zap.Logger, timeout time.Duration) *Fetcher {
 	if timeout == 0 {
 		timeout = 60 * time.Second // 默认超时时间
 	}

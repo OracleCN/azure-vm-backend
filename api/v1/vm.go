@@ -1,5 +1,7 @@
 package v1
 
+import "time"
+
 // VMCreateParams 创建虚拟机的参数
 type VMCreateParams struct {
 	SubscriptionID string            `json:"subscriptionId"`
@@ -27,4 +29,32 @@ type VMNetworkParams struct {
 	SubnetName     string   `json:"subnetName"`
 	PublicIP       bool     `json:"publicIp"`
 	SecurityGroups []string `json:"securityGroups"`
+}
+
+// VMQueryParams 定义虚拟机查询参数
+type VMQueryParams struct {
+	// 身份标识
+	UserID         string `json:"userId"`
+	AccountID      string `json:"accountId"`
+	SubscriptionID string `json:"subscriptionId,omitempty"`
+	VMID           string `json:"vmId,omitempty"` // 新增VMID字段
+
+	// 基础信息过滤
+	Name          string            `json:"name,omitempty"`
+	ResourceGroup string            `json:"resourceGroup,omitempty"`
+	Location      string            `json:"location,omitempty"`
+	Status        string            `json:"status,omitempty"`
+	Size          string            `json:"size,omitempty"`
+	Tags          map[string]string `json:"tags,omitempty"`
+	SyncStatus    string            `json:"syncStatus,omitempty"`
+
+	// 时间范围过滤
+	StartTime *time.Time `json:"startTime,omitempty"`
+	EndTime   *time.Time `json:"endTime,omitempty"`
+
+	// 分页排序
+	Page      int    `json:"page,omitempty"`
+	PageSize  int    `json:"pageSize,omitempty"`
+	SortBy    string `json:"sortBy,omitempty"`
+	SortOrder string `json:"sortOrder,omitempty"`
 }
