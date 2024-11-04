@@ -22,4 +22,7 @@ var (
 
 	// ErrorAzureNotFound 当前用户不存在这个azure账户
 	ErrorAzureNotFound = newError(1005, "This azure account does not exist for the current user")
+
+	// ErrSubscriptionNotFound 没有找到可用订阅
+	ErrSubscriptionNotFound = newError(1006, "no Available Subscriptions Found")
 )
