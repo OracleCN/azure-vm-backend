@@ -2,9 +2,19 @@ package repository
 
 import (
 	"azure-vm-backend/internal/model"
+	"azure-vm-backend/pkg/app"
 	"context"
+	"gorm.io/gorm"
 	"time"
 )
+
+// QueryVMsOptions VM查询选项
+type QueryVMsOptions struct {
+	AccountID      string            // 账号ID
+	SubscriptionID string            // 订阅ID
+	Query          *app.QueryOption  // 通用查询选项(分页、排序等)
+	ExtraFilters   map[string]string // 额外的过滤条件
+}
 
 type VirtualMachineRepository interface {
 	Create(ctx context.Context, vm *model.VirtualMachine) error
@@ -12,18 +22,17 @@ type VirtualMachineRepository interface {
 	Update(ctx context.Context, vm *model.VirtualMachine) error
 	Delete(ctx context.Context, vmID string) error
 
-	// ListByAccountID 查询操作
-	ListByAccountID(ctx context.Context, accountID string) ([]*model.VirtualMachine, error)
-	ListBySubscriptionID(ctx context.Context, subscriptionID string) ([]*model.VirtualMachine, error)
-	ListByAccountAndSubscription(ctx context.Context, accountID, subscriptionID string) ([]*model.VirtualMachine, error)
-
+	// ListVMs 查询操作
+	ListVMs(ctx context.Context, opts QueryVMsOptions) (*app.ListResult[*model.VirtualMachine], error)
+	ListBySubscriptionID(ctx context.Context, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
+	ListByAccountID(ctx context.Context, accountID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
+	ListByAccountAndSubscription(ctx context.Context, accountID string, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
 	// UpdateSyncStatus 同步相关操作
 	UpdateSyncStatus(ctx context.Context, vmID string, status string, syncTime time.Time) error
 	BatchUpsert(ctx context.Context, vms []*model.VirtualMachine) error
 
 	// UpdateStatus 状态相关操作
 	UpdateStatus(ctx context.Context, vmID string, status string) error
-	ListByStatus(ctx context.Context, accountID string, status string) ([]*model.VirtualMachine, error)
 }
 
 func NewVirtualMachineRepository(
@@ -47,13 +56,74 @@ func (r *virtualMachineRepository) Create(ctx context.Context, vm *model.Virtual
 	return nil
 }
 
+// ListVMs 统一的虚拟机查询方法
+func (r *virtualMachineRepository) ListVMs(ctx context.Context, opts QueryVMsOptions) (*app.ListResult[*model.VirtualMachine], error) {
+	opts.Query = app.ValidateAndFillQueryOption(opts.Query)
+
+	baseQuery := func(db *gorm.DB) *gorm.DB {
+		q := db.Model(&model.VirtualMachine{})
+
+		// 添加基本查询条件
+		if opts.AccountID != "" {
+			q = q.Where("account_id = ?", opts.AccountID)
+		}
+		if opts.SubscriptionID != "" {
+			q = q.Where("subscription_id = ?", opts.SubscriptionID)
+		}
+
+		// 添加通用过滤条件
+		if opts.Query.Filters != nil {
+			for field, value := range opts.Query.Filters {
+				if value != "" {
+					switch field {
+					case "status":
+						q = q.Where("status = ?", value)
+					case "location":
+						q = q.Where("location = ?", value)
+					case "resource_group":
+						q = q.Where("resource_group = ?", value)
+					case "size":
+						q = q.Where("size = ?", value)
+					case "sync_status":
+						q = q.Where("sync_status = ?", value)
+					}
+				}
+			}
+		}
+
+		// 添加额外的过滤条件
+		if opts.ExtraFilters != nil {
+			for field, value := range opts.ExtraFilters {
+				if value != "" {
+					switch field {
+					case "os_type":
+						q = q.Where("os_type = ?", value)
+					case "name_like":
+						q = q.Where("name LIKE ?", "%"+value+"%")
+					case "tag":
+						q = q.Where("tags LIKE ?", "%"+value+"%")
+						// 可以根据需要添加更多过滤条件
+					}
+				}
+			}
+		}
+
+		return q
+	}
+
+	return app.WithPagination[*model.VirtualMachine](r.DB(ctx), opts.Query, baseQuery)
+}
+
 // GetByID 根据ID获取虚拟机信息
 func (r *virtualMachineRepository) GetByID(ctx context.Context, vmID string) (*model.VirtualMachine, error) {
-	// TODO: 实现根据ID查询虚拟机逻辑
-	// 1. 验证ID
-	// 2. 查询记录
-	// 3. 处理未找到的情况
-	return nil, nil
+	var vm model.VirtualMachine
+
+	result := r.DB(ctx).Where("vm_id = ?", vmID).First(&vm)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &vm, nil
 }
 
 // Update 更新虚拟机信息
@@ -72,33 +142,6 @@ func (r *virtualMachineRepository) Delete(ctx context.Context, vmID string) erro
 	// 2. 检查记录是否存在
 	// 3. 执行软删除操作
 	return nil
-}
-
-// ListByAccountID 获取指定账号的所有虚拟机
-func (r *virtualMachineRepository) ListByAccountID(ctx context.Context, accountID string) ([]*model.VirtualMachine, error) {
-	// TODO: 实现按账号查询虚拟机列表逻辑
-	// 1. 验证账号ID
-	// 2. 查询该账号下的所有虚拟机
-	// 3. 处理分页和排序
-	return nil, nil
-}
-
-// ListBySubscriptionID 获取指定订阅的所有虚拟机
-func (r *virtualMachineRepository) ListBySubscriptionID(ctx context.Context, subscriptionID string) ([]*model.VirtualMachine, error) {
-	// TODO: 实现按订阅查询虚拟机列表逻辑
-	// 1. 验证订阅ID
-	// 2. 查询该订阅下的所有虚拟机
-	// 3. 处理分页和排序
-	return nil, nil
-}
-
-// ListByAccountAndSubscription 获取指定账号和订阅下的所有虚拟机
-func (r *virtualMachineRepository) ListByAccountAndSubscription(ctx context.Context, accountID, subscriptionID string) ([]*model.VirtualMachine, error) {
-	// TODO: 实现按账号和订阅查询虚拟机列表逻辑
-	// 1. 验证账号ID和订阅ID
-	// 2. 查询符合条件的虚拟机
-	// 3. 处理分页和排序
-	return nil, nil
 }
 
 // UpdateSyncStatus 更新虚拟机同步状态
@@ -128,11 +171,27 @@ func (r *virtualMachineRepository) UpdateStatus(ctx context.Context, vmID string
 	return nil
 }
 
-// ListByStatus 获取指定状态的虚拟机列表
-func (r *virtualMachineRepository) ListByStatus(ctx context.Context, accountID string, status string) ([]*model.VirtualMachine, error) {
-	// TODO: 实现按状态查询虚拟机列表逻辑
-	// 1. 验证状态值是否合法
-	// 2. 查询指定状态的虚拟机
-	// 3. 处理分页和排序
-	return nil, nil
+// ListByAccountID 获取指定账号的所有虚拟机
+func (r *virtualMachineRepository) ListByAccountID(ctx context.Context, accountID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error) {
+	return r.ListVMs(ctx, QueryVMsOptions{
+		AccountID: accountID,
+		Query:     query,
+	})
+}
+
+// ListBySubscriptionID 获取指定订阅的所有虚拟机
+func (r *virtualMachineRepository) ListBySubscriptionID(ctx context.Context, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error) {
+	return r.ListVMs(ctx, QueryVMsOptions{
+		SubscriptionID: subscriptionID,
+		Query:          query,
+	})
+}
+
+// ListByAccountAndSubscription 获取指定账号和订阅的所有虚拟机
+func (r *virtualMachineRepository) ListByAccountAndSubscription(ctx context.Context, accountID string, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error) {
+	return r.ListVMs(ctx, QueryVMsOptions{
+		AccountID:      accountID,
+		SubscriptionID: subscriptionID,
+		Query:          query,
+	})
 }
