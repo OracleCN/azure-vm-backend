@@ -134,7 +134,7 @@ func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, ac
 	}
 
 	// 3. 从Azure获取订阅信息
-	fetcher := azure.NewFetcher(creds, s.logger, 30*time.Second)
+	fetcher := azure.NewFetcher(creds, s.logger.With(), 30*time.Second)
 	azureSubs, err := fetcher.FetchSubscriptionDetails(ctx)
 	if err != nil {
 		s.logger.Error("获取Azure订阅信息失败",
