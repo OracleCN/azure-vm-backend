@@ -24,11 +24,15 @@ type VirtualMachineRepository interface {
 
 	// ListVMs 查询操作
 	ListVMs(ctx context.Context, opts QueryVMsOptions) (*app.ListResult[*model.VirtualMachine], error)
+	// ListBySubscriptionID 根据订阅ID查询
 	ListBySubscriptionID(ctx context.Context, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
+	// ListByAccountID 根据账号ID查询
 	ListByAccountID(ctx context.Context, accountID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
+	// ListByAccountAndSubscription 根据账号ID和订阅ID查询
 	ListByAccountAndSubscription(ctx context.Context, accountID string, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
 	// UpdateSyncStatus 同步相关操作
 	UpdateSyncStatus(ctx context.Context, vmID string, status string, syncTime time.Time) error
+	// BatchUpsert 批量更新或插入
 	BatchUpsert(ctx context.Context, vms []*model.VirtualMachine) error
 
 	// UpdateStatus 状态相关操作
