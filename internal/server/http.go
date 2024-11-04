@@ -92,26 +92,27 @@ func NewHTTPServer(
 
 			// 虚拟机接口
 			// 查询虚拟机列表(支持过滤、分页等)
+			// 查询虚拟机列表(支持过滤、分页等)
 			strictAuthRouter.GET("/vms", vmHandler.ListVMs)
 
 			// 获取单个虚拟机详细信息
-			strictAuthRouter.GET("/vms/:accountId/:vmId", vmHandler.GetVM)
+			strictAuthRouter.GET("/vms/:accountId/instance/:vmId", vmHandler.GetVM)
 
 			// 获取指定账号和订阅下的虚拟机列表
-			strictAuthRouter.GET("/vms/:accountId/:subscriptionId/list", vmHandler.ListVMsBySubscription)
+			strictAuthRouter.GET("/vms/:accountId/subscription/:subscriptionId", vmHandler.ListVMsBySubscription)
 
 			// 同步指定账号下的所有虚拟机
 			strictAuthRouter.POST("/vms/:accountId/sync", vmHandler.SyncVMs)
 
 			// 同步指定订阅下的虚拟机
-			strictAuthRouter.POST("/vms/:accountId/:subscriptionId/sync", vmHandler.SyncVMsBySubscription)
+			strictAuthRouter.POST("/vms/:accountId/subscription/:subscriptionId/sync", vmHandler.SyncVMsBySubscription)
 
-			// 以下是预留的接口，暂不实现具体功能
+			// 预留的虚拟机管理接口
 			// 创建虚拟机（预留）
 			strictAuthRouter.POST("/vms/:accountId", vmHandler.CreateVM)
 
 			// 删除虚拟机（预留）
-			strictAuthRouter.DELETE("/vms/:accountId/:vmId", vmHandler.DeleteVM)
+			strictAuthRouter.DELETE("/vms/:accountId/instance/:vmId", vmHandler.DeleteVM)
 		}
 	}
 

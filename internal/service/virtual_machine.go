@@ -47,10 +47,16 @@ func convertTags(tags map[string]string) string {
 func NewVirtualMachineService(
 	service *Service,
 	virtualMachineRepository repository.VirtualMachineRepository,
+	accountsRepository repository.AccountsRepository, // 添加账号仓储
+	subscriptionsRepository repository.SubscriptionsRepository, // 添加订阅仓储
+	logger *log.Logger, // 添加日志器
 ) VirtualMachineService {
 	return &virtualMachineService{
 		Service:                  service,
 		virtualMachineRepository: virtualMachineRepository,
+		accountsRepository:       accountsRepository,
+		subscriptionsRepository:  subscriptionsRepository,
+		logger:                   logger,
 	}
 }
 
