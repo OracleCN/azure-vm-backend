@@ -21,6 +21,7 @@ func NewHTTPServer(
 	userHandler *handler.UserHandler,
 	accountsHandler *handler.AccountsHandler,
 	subHandler *handler.SubscriptionsHandler,
+	vmHandler *handler.VirtualMachineHandler,
 ) *http.Server {
 	gin.SetMode(gin.DebugMode)
 	s := http.NewServer(
@@ -88,6 +89,29 @@ func NewHTTPServer(
 			strictAuthRouter.POST("/subscriptions/:accountId/sync", subHandler.SyncSubscriptions)
 			// 删除指定账号的所有订阅信息
 			strictAuthRouter.DELETE("/subscriptions/:accountId", subHandler.DeleteSubscriptions)
+
+			// 虚拟机接口
+			// 查询虚拟机列表(支持过滤、分页等)
+			strictAuthRouter.GET("/vms", vmHandler.ListVMs)
+
+			// 获取单个虚拟机详细信息
+			strictAuthRouter.GET("/vms/:accountId/:vmId", vmHandler.GetVM)
+
+			// 获取指定账号和订阅下的虚拟机列表
+			strictAuthRouter.GET("/vms/:accountId/:subscriptionId/list", vmHandler.ListVMsBySubscription)
+
+			// 同步指定账号下的所有虚拟机
+			strictAuthRouter.POST("/vms/:accountId/sync", vmHandler.SyncVMs)
+
+			// 同步指定订阅下的虚拟机
+			strictAuthRouter.POST("/vms/:accountId/:subscriptionId/sync", vmHandler.SyncVMsBySubscription)
+
+			// 以下是预留的接口，暂不实现具体功能
+			// 创建虚拟机（预留）
+			strictAuthRouter.POST("/vms/:accountId", vmHandler.CreateVM)
+
+			// 删除虚拟机（预留）
+			strictAuthRouter.DELETE("/vms/:accountId/:vmId", vmHandler.DeleteVM)
 		}
 	}
 

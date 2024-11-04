@@ -39,7 +39,10 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 	subscriptionsRepository := repository.NewSubscriptionsRepository(repositoryRepository)
 	subscriptionsService := service.NewSubscriptionsService(serviceService, subscriptionsRepository, accountsRepository)
 	subscriptionsHandler := handler.NewSubscriptionsHandler(handlerHandler, subscriptionsService)
-	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler)
+	virtualMachineRepository := repository.NewVirtualMachineRepository(repositoryRepository)
+	virtualMachineService := service.NewVirtualMachineService(serviceService, virtualMachineRepository)
+	virtualMachineHandler := handler.NewVirtualMachineHandler(handlerHandler, virtualMachineService)
+	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler, virtualMachineHandler)
 	job := server.NewJob(logger)
 	appApp := newApp(httpServer, job)
 	return appApp, func() {
@@ -48,11 +51,11 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 
 // wire.go:
 
-var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository, repository.NewSubscriptionsRepository)
+var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository, repository.NewSubscriptionsRepository, repository.NewVirtualMachineRepository)
 
-var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService, service.NewSubscriptionsService)
+var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService, service.NewSubscriptionsService, service.NewVirtualMachineService)
 
-var handlerSet = wire.NewSet(handler.NewHandler, handler.NewUserHandler, handler.NewAccountsHandler, handler.NewSubscriptionsHandler)
+var handlerSet = wire.NewSet(handler.NewHandler, handler.NewUserHandler, handler.NewAccountsHandler, handler.NewSubscriptionsHandler, handler.NewVirtualMachineHandler)
 
 var serverSet = wire.NewSet(server.NewHTTPServer, server.NewJob)
 
