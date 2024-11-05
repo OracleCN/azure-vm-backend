@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go.uber.org/zap"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -330,8 +331,21 @@ func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID s
 
 	// 批量更新数据库
 	if err := s.virtualMachineRepository.BatchUpsert(ctx, dbVMs); err != nil {
-		return fmt.Errorf("failed to update VMs in database: %w", err)
+		return fmt.Errorf("更新数据库中的虚拟机失败: %w", err)
 	}
+
+	// 更新账户表中的虚拟机数量
+	if err := s.accountsRepository.UpdateVMCount(ctx, accountID, int64(len(vms))); err != nil {
+		s.logger.Error("更新账户中的虚拟机数量失败",
+			zap.String("accountID", accountID),
+			zap.String("vmCount", strconv.FormatInt(int64(len(vms)), 10)),
+			zap.Error(err))
+		return err
+	}
+
+	s.logger.Info("成功更新账户虚拟机数量",
+		zap.String("accountID", accountID),
+		zap.Int64("vmCount", int64(len(vms))))
 
 	return nil
 }
@@ -395,7 +409,7 @@ func (s *virtualMachineService) checkAccountAccess(ctx context.Context, userID, 
 	}
 	// 检查账号是否属于该用户
 	if account.UserID != userID {
-		return fmt.Errorf("user does not have access to this account")
+		return fmt.Errorf("用户无权访问此帐户")
 	}
 
 	return nil
@@ -410,7 +424,7 @@ func (s *virtualMachineService) checkSubscriptionAccess(ctx context.Context, acc
 
 	// 检查订阅是否属于该账号
 	if subscription.AccountID != accountID {
-		return fmt.Errorf("subscription does not belong to this account")
+		return fmt.Errorf("订阅不属于此帐户")
 	}
 
 	return nil

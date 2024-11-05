@@ -5,7 +5,9 @@ import (
 	"azure-vm-backend/internal/model"
 	"context"
 	"errors"
+	"fmt"
 	"gorm.io/gorm"
+	"time"
 )
 
 type AccountsRepository interface {
@@ -17,6 +19,7 @@ type AccountsRepository interface {
 	DeleteAccount(ctx context.Context, userId string, accountId string) error
 	UpdateAccount(ctx context.Context, userId string, accountId string, updates map[string]interface{}) error
 	BatchDeleteAccounts(ctx context.Context, userId string, accountIds []string) (int64, error)
+	UpdateVMCount(ctx context.Context, accountID string, vmCount int64) error
 }
 
 func NewAccountsRepository(
@@ -165,4 +168,45 @@ func (r *Repository) GetAccountByUserIdAndAccountId(ctx context.Context, userId 
 	}
 
 	return &account, nil
+}
+func (r *accountsRepository) UpdateVMCount(ctx context.Context, accountID string, vmCount int64) error {
+	if accountID == "" {
+		return fmt.Errorf("帐户ID不能为空")
+	}
+
+	// 开始事务
+	tx := r.DB(ctx).Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("事务开始失败: %w", tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 更新账户表中的虚拟机数量和最后更新时间
+	result := tx.Model(&model.Accounts{}).
+		Where("account_id = ?", accountID).
+		Updates(map[string]interface{}{
+			"vm_count":   vmCount,
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		tx.Rollback()
+		return fmt.Errorf("更新虚拟机数量失败: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		tx.Rollback()
+		return fmt.Errorf("帐户未找到: %s", accountID)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("提交失败: %w", err)
+	}
+
+	return nil
 }

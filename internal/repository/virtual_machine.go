@@ -182,7 +182,7 @@ func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model
 			if len(vm.DataDisks) > 0 {
 				dataDisksJSON, err := json.Marshal(vm.DataDisks)
 				if err != nil {
-					return fmt.Errorf("failed to marshal data disks for VM %s: %w", vm.VMID, err)
+					return fmt.Errorf("为虚拟机调用数据磁盘失败 %s: %w", vm.VMID, err)
 				}
 				vm.DataDisks = string(dataDisksJSON)
 			}
@@ -191,7 +191,7 @@ func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model
 			if len(vm.Tags) > 0 {
 				tagsJSON, err := json.Marshal(vm.Tags)
 				if err != nil {
-					return fmt.Errorf("failed to marshal tags for VM %s: %w", vm.VMID, err)
+					return fmt.Errorf("未能为虚拟机调用标记 %s: %w", vm.VMID, err)
 				}
 				vm.Tags = string(tagsJSON)
 			}
