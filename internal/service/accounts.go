@@ -16,7 +16,7 @@ import (
 
 type AccountsService interface {
 	// CreateAccount 创建账户
-	CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) error
+	CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) (string, error)
 	GetAccount(ctx context.Context, userId string, loginMail string) (*model.Accounts, error)
 	GetAccountList(ctx context.Context, userId string) ([]*model.Accounts, error)
 	DeleteAccount(ctx context.Context, userId string, accountIds []string) error
@@ -38,7 +38,7 @@ type accountsService struct {
 	accountsRepo repository.AccountsRepository
 }
 
-func (s *accountsService) CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) error {
+func (s *accountsService) CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) (string, error) {
 	// 判断 邮箱是否重复出现在 账号表内
 	existingAccount, err := s.accountsRepo.GetAccountByEmail(ctx, req.LoginEmail)
 	if err != nil {
@@ -46,14 +46,14 @@ func (s *accountsService) CreateAccount(ctx context.Context, userId string, req 
 			zap.Error(err),
 			zap.String("email", req.LoginEmail),
 		)
-		return v1.ErrAccountError
+		return "", v1.ErrAccountError
 	}
 	if existingAccount != nil {
 		s.logger.Warn("已使用的电子邮件",
 			zap.String("email", req.LoginEmail),
 			zap.String("existing_user_id", existingAccount.UserID),
 		)
-		return v1.ErrAccountEmailDuplicate
+		return "", v1.ErrAccountEmailDuplicate
 	}
 	// 2. 验证 Azure 凭据
 	validator := azure.NewValidator(60 * time.Second)
@@ -71,7 +71,7 @@ func (s *accountsService) CreateAccount(ctx context.Context, userId string, req 
 			zap.Time("validated_at", result.ValidatedAt),
 			zap.String("display_name", req.DisplayName),
 		)
-		return fmt.Errorf("azure验证失败: %s", result.Message)
+		return "", fmt.Errorf("azure验证失败: %s", result.Message)
 	}
 	// 3. 创建账号记录
 	account := &model.Accounts{
@@ -94,7 +94,7 @@ func (s *accountsService) CreateAccount(ctx context.Context, userId string, req 
 			zap.String("user_id", userId),
 			zap.String("login_email", req.LoginEmail),
 		)
-		return fmt.Errorf("创建账户失败: %w", err)
+		return "", fmt.Errorf("创建账户失败: %w", err)
 	}
 
 	s.logger.Info("帐户已成功创建",
@@ -103,7 +103,7 @@ func (s *accountsService) CreateAccount(ctx context.Context, userId string, req 
 		zap.String("login_email", req.LoginEmail),
 	)
 
-	return nil
+	return account.AccountID, nil
 }
 
 // GetAccount 获取某个azure账户的azure账户信息

@@ -111,11 +111,14 @@ func (h *AccountsHandler) CreateAccounts(ctx *gin.Context) {
 		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
 		return
 	}
-	if err := h.accountsService.CreateAccount(ctx, userId, &req); err != nil {
+	accountId, err := h.accountsService.CreateAccount(ctx, userId, &req)
+	if err != nil {
 		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
 		return
 	}
-	v1.HandleSuccess(ctx, nil)
+	v1.HandleSuccess(ctx, map[string]string{
+		"accountId": accountId,
+	})
 }
 
 // UpdateAccount godoc
