@@ -17,6 +17,7 @@ type VirtualMachine struct {
 	Size           string    `gorm:"column:size;type:varchar(64);not null" json:"size"`
 	Status         string    `gorm:"column:status;type:varchar(32);not null;default:Running" json:"status"`
 	State          string    `gorm:"column:state;type:varchar(32);not null" json:"state"`
+	PowerState     string    `gorm:"column:power_state;type:varchar(32);not null" json:"powerState"`
 	PrivateIPs     string    `gorm:"column:private_ips;type:text" json:"privateIps"` // JSON string array
 	PublicIPs      string    `gorm:"column:public_ips;type:text" json:"publicIps"`   // JSON string array
 	OSType         string    `gorm:"column:os_type;type:varchar(32)" json:"osType"`
@@ -25,6 +26,7 @@ type VirtualMachine struct {
 	Tags           string    `gorm:"column:tags;type:text" json:"tags"`            // JSON object
 	SyncStatus     string    `gorm:"column:sync_status;type:varchar(32);not null;default:pending" json:"syncStatus"`
 	LastSyncAt     time.Time `gorm:"column:last_sync_at" json:"lastSyncAt"`
+	CreatedTime    time.Time `gorm:"column:created_time" json:"createdTime"`
 }
 
 // TableName 指定表名

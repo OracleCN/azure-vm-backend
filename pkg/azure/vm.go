@@ -22,7 +22,7 @@ type VMDetails struct {
 	Location       string `json:"location"`
 	Size           string `json:"size"`
 	State          string `json:"state"`
-
+	Status         string `json:"status"`
 	// 网络信息
 	PrivateIPs []string `json:"privateIps"`
 	PublicIPs  []string `json:"publicIps"`
@@ -30,6 +30,10 @@ type VMDetails struct {
 	// 磁盘信息
 	OSDiskSize int32      `json:"osDiskSize"`
 	DataDisks  []DiskInfo `json:"dataDisks"`
+
+	// 系统信息
+	OSType  string `json:"osType"`  // Windows/Linux
+	OSImage string `json:"osImage"` // 完整的镜像信息
 
 	// 标签和其他元数据
 	Tags        map[string]string `json:"tags"`
@@ -41,6 +45,8 @@ type VMDetails struct {
 
 	// 获取时间
 	FetchedAt time.Time `json:"fetchedAt"`
+
+	PowerState string `json:"powerState"`
 }
 
 // DiskInfo 包含磁盘的详细信息
@@ -238,6 +244,10 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 	if vm.Location == nil {
 		return details, fmt.Errorf("vm 位置为空")
 	}
+	// 获取创建时间
+	if vm.Properties != nil && vm.Properties.TimeCreated != nil {
+		details.CreatedTime = *vm.Properties.TimeCreated
+	}
 	details.Location = *vm.Location
 
 	// 处理可选字段
@@ -247,19 +257,89 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 			details.Size = string(*vm.Properties.HardwareProfile.VMSize)
 		}
 
+		// 获取操作系统类型和镜像信息
+		if vm.Properties.StorageProfile != nil && vm.Properties.StorageProfile.OSDisk != nil {
+			if vm.Properties.StorageProfile.OSDisk.OSType != nil {
+				details.OSType = string(*vm.Properties.StorageProfile.OSDisk.OSType)
+			}
+
+			// 获取操作系统详细信息
+			if vm.Properties.StorageProfile.ImageReference != nil {
+				imgRef := vm.Properties.StorageProfile.ImageReference
+				var osInfo []string
+
+				if imgRef.Publisher != nil {
+					osInfo = append(osInfo, *imgRef.Publisher)
+				}
+				if imgRef.Offer != nil {
+					osInfo = append(osInfo, *imgRef.Offer)
+				}
+				if imgRef.SKU != nil {
+					osInfo = append(osInfo, *imgRef.SKU)
+				}
+				if imgRef.Version != nil && *imgRef.Version != "latest" {
+					osInfo = append(osInfo, *imgRef.Version)
+				}
+
+				details.OSImage = strings.Join(osInfo, ":")
+			}
+		}
+
 		// 获取VM状态
 		if vm.Properties.ProvisioningState != nil {
 			details.State = *vm.Properties.ProvisioningState
 		}
 
 		// 如果有实例视图，获取更详细的状态
-		if vm.Properties.InstanceView != nil && len(vm.Properties.InstanceView.Statuses) > 0 {
-			for _, status := range vm.Properties.InstanceView.Statuses {
-				if status.Code != nil {
-					if strings.HasPrefix(*status.Code, "PowerState/") {
-						details.State = strings.TrimPrefix(*status.Code, "PowerState/")
-						break
+		// 首先获取实例视图以获取最新状态
+		vmClient, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+		if err != nil {
+			f.logger.Error("创建VM客户端失败", zap.Error(err))
+		} else {
+			instanceView, err := vmClient.InstanceView(ctx, details.ResourceGroup, details.Name, nil)
+			if err != nil {
+				f.logger.Error("获取VM实例视图失败",
+					zap.String("vmName", details.Name),
+					zap.Error(err))
+			} else if instanceView.Statuses != nil {
+				// 解析状态信息
+				var provisioningState, powerState string
+				for _, status := range instanceView.Statuses {
+					if status.Code == nil {
+						continue
 					}
+
+					code := *status.Code
+					// 处理配置状态
+					if strings.HasPrefix(code, "ProvisioningState/") {
+						provisioningState = strings.TrimPrefix(code, "ProvisioningState/")
+					}
+					// 处理电源状态
+					if strings.HasPrefix(code, "PowerState/") {
+						powerState = strings.TrimPrefix(code, "PowerState/")
+					}
+				}
+
+				// 设置状态信息
+				details.State = provisioningState // 部署状态
+				details.PowerState = powerState   // 电源状态
+
+				// 根据电源状态设置运行状态
+				switch powerState {
+				case "running":
+					details.Status = "Running"
+				case "stopped":
+					details.Status = "Stopped"
+				case "deallocated":
+					details.Status = "Deallocated"
+				case "starting":
+					details.Status = "Starting"
+				case "stopping":
+					details.Status = "Stopping"
+				case "deallocating":
+					details.Status = "Deallocating"
+				default:
+					details.Status = "Unknown"
 				}
 			}
 		}
@@ -427,7 +507,11 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 		zap.String("vmName", details.Name),
 		zap.String("location", details.Location),
 		zap.String("size", details.Size),
-		zap.String("state", details.State),
+		zap.String("osType", details.OSType),
+		zap.String("osImage", details.OSImage),
+		zap.String("status", details.Status),
+		zap.String("powerState", details.PowerState),
+		zap.String("provisioningState", details.State),
 		zap.Int32("osDiskSize", details.OSDiskSize),
 		zap.Int("dataDisksCount", len(details.DataDisks)))
 

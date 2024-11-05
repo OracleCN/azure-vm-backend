@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go.uber.org/zap"
+	"strings"
 	"time"
 )
 
@@ -66,6 +67,104 @@ type virtualMachineService struct {
 	accountsRepository       repository.AccountsRepository
 	subscriptionsRepository  repository.SubscriptionsRepository
 	logger                   *log.Logger
+}
+
+// syncVMsHelper 同步虚拟机的辅助结构体
+type syncVMsHelper struct {
+	service     *virtualMachineService
+	ctx         context.Context
+	userID      string
+	accountID   string
+	credentials *azure.Credentials
+	logger      *zap.Logger
+}
+
+// newSyncVMsHelper 创建同步辅助结构体
+func newSyncVMsHelper(service *virtualMachineService, ctx context.Context, userID, accountID string) (*syncVMsHelper, error) {
+	// 获取账号凭据
+	account, err := service.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userID, accountID)
+	if err != nil {
+		return nil, fmt.Errorf("获取帐户凭据失败: %w", err)
+	}
+
+	// 创建Azure凭据
+	credentials := &azure.Credentials{
+		TenantID:     account.Tenant,
+		ClientID:     account.AppID,
+		ClientSecret: account.PassWord,
+	}
+
+	// 创建日志记录器
+	logger := service.logger.With(
+		zap.String("accountId", accountID),
+		zap.String("userId", userID),
+	)
+
+	return &syncVMsHelper{
+		service:     service,
+		ctx:         ctx,
+		userID:      userID,
+		accountID:   accountID,
+		credentials: credentials,
+		logger:      logger,
+	}, nil
+}
+
+// convertVMToModel 将Azure VM转换为数据库模型
+func (h *syncVMsHelper) convertVMToModel(vm azure.VMDetails) (*model.VirtualMachine, error) {
+	// 转换网络信息为JSON字符串
+	networkInfo := map[string]interface{}{
+		"privateIPs": vm.PrivateIPs,
+		"publicIPs":  vm.PublicIPs,
+	}
+	_, err := json.Marshal(networkInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal network info: %w", err)
+	}
+
+	// 转换磁盘信息为JSON字符串
+	diskInfo := map[string]interface{}{
+		"osDiskSize": vm.OSDiskSize,
+		"dataDisks":  vm.DataDisks,
+	}
+	diskJSON, err := json.Marshal(diskInfo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal disk info: %w", err)
+	}
+
+	// 创建数据库VM记录
+	return &model.VirtualMachine{
+		// 基础标识信息
+		AccountID:      h.accountID,
+		VMID:           vm.ID,
+		SubscriptionID: vm.SubscriptionID,
+		Name:           vm.Name,
+		ResourceGroup:  vm.ResourceGroup,
+
+		// 资源信息
+		Location:   vm.Location,
+		Size:       vm.Size,
+		Status:     vm.State,
+		OSType:     vm.OSType,
+		State:      vm.State,
+		PowerState: vm.PowerState,
+
+		// 网络配置
+		PrivateIPs: strings.Join(vm.PrivateIPs, ","),
+		PublicIPs:  strings.Join(vm.PublicIPs, ","),
+
+		// 磁盘配置
+		DataDisks:  string(diskJSON),
+		OSDiskSize: int(vm.OSDiskSize),
+
+		// 元数据
+		Tags: convertTags(vm.Tags),
+
+		// 同步状态
+		SyncStatus:  "synced",
+		LastSyncAt:  time.Now(),
+		CreatedTime: vm.CreatedTime,
+	}, nil
 }
 
 // GetVM 获取单个虚拟机详细信息
@@ -163,66 +262,6 @@ func (s *virtualMachineService) ListVMs(ctx context.Context, params *v1.VMQueryP
 	return s.virtualMachineRepository.ListVMs(ctx, vmOpts)
 }
 
-// SyncVMs 同步指定账号下的所有虚拟机信息
-func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID string) error {
-	// 检查用户是否有权限访问该账号
-	if err := s.checkAccountAccess(ctx, userID, accountID); err != nil {
-		return fmt.Errorf("access denied: %w", err)
-	}
-
-	// 获取账号凭据
-	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userID, accountID)
-	if err != nil {
-		return fmt.Errorf("failed to get account credentials: %w", err)
-	}
-
-	// 创建Azure凭据
-	credentials := &azure.Credentials{
-		TenantID:     account.Tenant,
-		ClientID:     account.AppID,
-		ClientSecret: account.PassWord,
-	}
-
-	// 创建VM获取器
-	vmFetcher := azure.NewVMFetcher(credentials, s.logger.With(
-		zap.String("accountId", accountID),
-		zap.String("userId", userID),
-	), 5*time.Minute)
-
-	// 获取最新的VM信息
-	vms, err := vmFetcher.FetchVMDetails(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch VMs from Azure: %w", err)
-	}
-
-	// 将Azure VM信息转换为数据库模型
-	var dbVMs []*model.VirtualMachine
-	for _, vm := range vms {
-		dbVM := &model.VirtualMachine{
-			AccountID:      accountID,
-			VMID:           vm.ID,
-			SubscriptionID: vm.SubscriptionID,
-			Name:           vm.Name,
-			ResourceGroup:  vm.ResourceGroup,
-			Location:       vm.Location,
-			Size:           vm.Size,
-			Status:         vm.State,
-			Tags:           convertTags(vm.Tags),
-			SyncStatus:     "synced",
-			LastSyncAt:     time.Now(),
-			// 设置其他必要字段
-		}
-		dbVMs = append(dbVMs, dbVM)
-	}
-
-	// 批量更新数据库
-	if err := s.virtualMachineRepository.BatchUpsert(ctx, dbVMs); err != nil {
-		return fmt.Errorf("failed to update VMs in database: %w", err)
-	}
-
-	return nil
-}
-
 // ListVMsBySubscription 获取指定订阅下的所有虚拟机
 func (s *virtualMachineService) ListVMsBySubscription(ctx context.Context, userID, accountID, subscriptionID string) ([]*model.VirtualMachine, error) {
 	// 检查用户是否有权限访问该账号
@@ -254,37 +293,21 @@ func (s *virtualMachineService) ListVMsBySubscription(ctx context.Context, userI
 	return result.Items, nil
 }
 
-// SyncVMsBySubscription 同步指定订阅下的所有虚拟机信息
-func (s *virtualMachineService) SyncVMsBySubscription(ctx context.Context, userID, accountID, subscriptionID string) error {
+// SyncVMs 同步指定账号下的所有虚拟机信息
+func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID string) error {
 	// 检查用户是否有权限访问该账号
 	if err := s.checkAccountAccess(ctx, userID, accountID); err != nil {
 		return fmt.Errorf("access denied: %w", err)
 	}
 
-	// 检查订阅是否属于该账号
-	if err := s.checkSubscriptionAccess(ctx, accountID, subscriptionID); err != nil {
-		return fmt.Errorf("subscription access denied: %w", err)
-	}
-
-	// 获取账号凭据
-	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userID, accountID)
+	// 创建同步辅助结构体
+	helper, err := newSyncVMsHelper(s, ctx, userID, accountID)
 	if err != nil {
-		return fmt.Errorf("failed to get account credentials: %w", err)
-	}
-
-	// 创建Azure凭据
-	credentials := &azure.Credentials{
-		TenantID:     account.Tenant,
-		ClientID:     account.AppID,
-		ClientSecret: account.PassWord,
+		return err
 	}
 
 	// 创建VM获取器
-	vmFetcher := azure.NewVMFetcher(credentials, s.logger.With(
-		zap.String("accountId", accountID),
-		zap.String("subscriptionId", subscriptionID),
-		zap.String("userId", userID),
-	), 5*time.Minute)
+	vmFetcher := azure.NewVMFetcher(helper.credentials, helper.logger, 5*time.Minute)
 
 	// 获取最新的VM信息
 	vms, err := vmFetcher.FetchVMDetails(ctx)
@@ -292,23 +315,65 @@ func (s *virtualMachineService) SyncVMsBySubscription(ctx context.Context, userI
 		return fmt.Errorf("failed to fetch VMs from Azure: %w", err)
 	}
 
-	// 过滤出指定订阅的VM
+	// 转换所有VM为数据库模型
+	var dbVMs []*model.VirtualMachine
+	for _, vm := range vms {
+		dbVM, err := helper.convertVMToModel(vm)
+		if err != nil {
+			helper.logger.Error("Failed to convert VM",
+				zap.String("vmId", vm.ID),
+				zap.Error(err))
+			continue
+		}
+		dbVMs = append(dbVMs, dbVM)
+	}
+
+	// 批量更新数据库
+	if err := s.virtualMachineRepository.BatchUpsert(ctx, dbVMs); err != nil {
+		return fmt.Errorf("failed to update VMs in database: %w", err)
+	}
+
+	return nil
+}
+
+func (s *virtualMachineService) SyncVMsBySubscription(ctx context.Context, userID, accountID, subscriptionID string) error {
+	// 检查用户是否有权限访问该账号
+	if err := s.checkAccountAccess(ctx, userID, accountID); err != nil {
+		return fmt.Errorf("拒绝访问: %w", err)
+	}
+
+	// 检查订阅是否属于该账号
+	if err := s.checkSubscriptionAccess(ctx, accountID, subscriptionID); err != nil {
+		return fmt.Errorf("拒绝订阅访问: %w", err)
+	}
+
+	// 创建同步辅助结构体
+	helper, err := newSyncVMsHelper(s, ctx, userID, accountID)
+	if err != nil {
+		return err
+	}
+
+	// 创建VM获取器
+	vmFetcher := azure.NewVMFetcher(helper.credentials, helper.logger.With(
+		zap.String("subscriptionId", subscriptionID),
+	), 5*time.Minute)
+
+	// 获取最新的VM信息
+	vms, err := vmFetcher.FetchVMDetails(ctx)
+	if err != nil {
+		return fmt.Errorf("从 Azure 获取虚拟机失败: %w", err)
+	}
+
+	// 过滤并转换指定订阅的VM
 	var subscriptionVMs []*model.VirtualMachine
 	for _, vm := range vms {
 		if vm.SubscriptionID == subscriptionID {
-			dbVM := &model.VirtualMachine{
-				AccountID:      accountID,
-				VMID:           vm.ID,
-				SubscriptionID: vm.SubscriptionID,
-				Name:           vm.Name,
-				ResourceGroup:  vm.ResourceGroup,
-				Location:       vm.Location,
-				Size:           vm.Size,
-				Status:         vm.State,
-				Tags:           convertTags(vm.Tags),
-				SyncStatus:     "synced",
-				LastSyncAt:     time.Now(),
-				// 设置其他必要字段
+			dbVM, err := helper.convertVMToModel(vm)
+			if err != nil {
+				helper.logger.Error("转换虚拟机失败",
+					zap.String("vmId", vm.ID),
+					zap.Error(err))
+				continue
 			}
 			subscriptionVMs = append(subscriptionVMs, dbVM)
 		}
@@ -316,7 +381,7 @@ func (s *virtualMachineService) SyncVMsBySubscription(ctx context.Context, userI
 
 	// 批量更新数据库
 	if err := s.virtualMachineRepository.BatchUpsert(ctx, subscriptionVMs); err != nil {
-		return fmt.Errorf("failed to update VMs in database: %w", err)
+		return fmt.Errorf("更新数据库中的虚拟机失败: %w", err)
 	}
 
 	return nil
@@ -328,7 +393,6 @@ func (s *virtualMachineService) checkAccountAccess(ctx context.Context, userID, 
 	if err != nil {
 		return err
 	}
-
 	// 检查账号是否属于该用户
 	if account.UserID != userID {
 		return fmt.Errorf("user does not have access to this account")

@@ -4,6 +4,8 @@ import (
 	"azure-vm-backend/internal/model"
 	"azure-vm-backend/pkg/app"
 	"context"
+	"encoding/json"
+	"fmt"
 	"gorm.io/gorm"
 	"time"
 )
@@ -30,11 +32,8 @@ type VirtualMachineRepository interface {
 	ListByAccountID(ctx context.Context, accountID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
 	// ListByAccountAndSubscription 根据账号ID和订阅ID查询
 	ListByAccountAndSubscription(ctx context.Context, accountID string, subscriptionID string, query *app.QueryOption) (*app.ListResult[*model.VirtualMachine], error)
-	// UpdateSyncStatus 同步相关操作
-	UpdateSyncStatus(ctx context.Context, vmID string, status string, syncTime time.Time) error
 	// BatchUpsert 批量更新或插入
 	BatchUpsert(ctx context.Context, vms []*model.VirtualMachine) error
-
 	// UpdateStatus 状态相关操作
 	UpdateStatus(ctx context.Context, vmID string, status string) error
 }
@@ -148,22 +147,120 @@ func (r *virtualMachineRepository) Delete(ctx context.Context, vmID string) erro
 	return nil
 }
 
-// UpdateSyncStatus 更新虚拟机同步状态
-func (r *virtualMachineRepository) UpdateSyncStatus(ctx context.Context, vmID string, status string, syncTime time.Time) error {
-	// TODO: 实现更新同步状态逻辑
-	// 1. 验证状态值是否合法
-	// 2. 更新同步状态和时间
-	// 3. 记录状态变更历史
-	return nil
-}
-
-// BatchUpsert 批量更新或插入虚拟机记录
 func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model.VirtualMachine) error {
-	// TODO: 实现批量更新插入逻辑
-	// 1. 验证虚拟机记录列表
-	// 2. 批量检查已存在记录
-	// 3. 执行批量插入或更新操作
-	return nil
+	if len(vms) == 0 {
+		return nil
+	}
+
+	// 开始事务
+	return r.DB(ctx).Transaction(func(tx *gorm.DB) error {
+		// 获取所有VM的ID列表
+		var vmIDs []string
+		for _, vm := range vms {
+			vmIDs = append(vmIDs, vm.VMID)
+		}
+
+		// 获取数据库中已存在的记录
+		var existingVMs []*model.VirtualMachine
+		if err := tx.Where("vm_id IN ?", vmIDs).Find(&existingVMs).Error; err != nil {
+			return fmt.Errorf("failed to query existing VMs: %w", err)
+		}
+
+		// 创建现有VM ID的映射，用于快速查找
+		existingVMMap := make(map[string]*model.VirtualMachine)
+		for _, vm := range existingVMs {
+			existingVMMap[vm.VMID] = vm
+		}
+
+		// 分别处理更新和插入
+		var toUpdate []*model.VirtualMachine
+		var toInsert []*model.VirtualMachine
+		now := time.Now()
+
+		for _, vm := range vms {
+			// 转换磁盘信息为JSON字符串
+			if len(vm.DataDisks) > 0 {
+				dataDisksJSON, err := json.Marshal(vm.DataDisks)
+				if err != nil {
+					return fmt.Errorf("failed to marshal data disks for VM %s: %w", vm.VMID, err)
+				}
+				vm.DataDisks = string(dataDisksJSON)
+			}
+
+			// 转换标签为JSON字符串
+			if len(vm.Tags) > 0 {
+				tagsJSON, err := json.Marshal(vm.Tags)
+				if err != nil {
+					return fmt.Errorf("failed to marshal tags for VM %s: %w", vm.VMID, err)
+				}
+				vm.Tags = string(tagsJSON)
+			}
+			if existing, exists := existingVMMap[vm.VMID]; exists {
+				// 更新现有记录
+				vm.ID = existing.ID
+				vm.CreatedAt = existing.CreatedAt
+				vm.UpdatedAt = now
+				toUpdate = append(toUpdate, vm)
+			} else {
+				// 新记录
+				vm.CreatedAt = now
+				vm.UpdatedAt = now
+				toInsert = append(toInsert, vm)
+			}
+		}
+
+		// 批量插入新记录
+		if len(toInsert) > 0 {
+			batchSize := 100
+			for i := 0; i < len(toInsert); i += batchSize {
+				end := i + batchSize
+				if end > len(toInsert) {
+					end = len(toInsert)
+				}
+				if err := tx.Create(toInsert[i:end]).Error; err != nil {
+					return fmt.Errorf("failed to insert VMs batch: %w", err)
+				}
+			}
+		}
+
+		// 批量更新现有记录
+		if len(toUpdate) > 0 {
+			batchSize := 100
+			for i := 0; i < len(toUpdate); i += batchSize {
+				end := i + batchSize
+				if end > len(toUpdate) {
+					end = len(toUpdate)
+				}
+				for _, vm := range toUpdate[i:end] {
+					updateFields := map[string]interface{}{
+						"name":           vm.Name,
+						"resource_group": vm.ResourceGroup,
+						"location":       vm.Location,
+						"size":           vm.Size,
+						"status":         vm.Status,
+						"state":          vm.State,
+						"private_ips":    vm.PrivateIPs,
+						"public_ips":     vm.PublicIPs,
+						"os_type":        vm.OSType,
+						"os_disk_size":   vm.OSDiskSize,
+						"data_disks":     vm.DataDisks,
+						"power_state":    vm.PowerState,
+						"tags":           vm.Tags,
+						"sync_status":    vm.SyncStatus,
+						"last_sync_at":   vm.LastSyncAt,
+						"updated_at":     now,
+						"created_time":   vm.CreatedTime,
+					}
+
+					if err := tx.Model(vm).Updates(updateFields).Error; err != nil {
+						return fmt.Errorf("failed to update VM %s: %w", vm.VMID, err)
+					}
+				}
+			}
+		}
+
+		return nil
+	})
 }
 
 // UpdateStatus 更新虚拟机状态
