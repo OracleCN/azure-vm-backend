@@ -100,12 +100,6 @@ func (h *VirtualMachineHandler) ListVMs(ctx *gin.Context) {
 		SyncStatus:     ctx.Query("syncStatus"),
 	}
 
-	// 验证必要参数
-	if params.AccountID == "" {
-		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
-		return
-	}
-
 	// 获取虚拟机列表
 	result, err := h.vmService.ListVMs(ctx, params)
 	if err != nil {
@@ -181,13 +175,13 @@ func (h *VirtualMachineHandler) SyncVMs(ctx *gin.Context) {
 	}
 
 	// 同步虚拟机信息
-	err := h.vmService.SyncVMs(ctx, userId, accountId)
+	ms, err := h.vmService.SyncVMs(ctx, userId, accountId)
 	if err != nil {
 		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	v1.HandleSuccess(ctx, nil)
+	v1.HandleSuccess(ctx, ms)
 }
 
 // SyncVMsBySubscription godoc

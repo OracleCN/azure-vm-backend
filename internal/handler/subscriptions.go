@@ -123,13 +123,15 @@ func (h *SubscriptionsHandler) SyncSubscriptions(ctx *gin.Context) {
 	}
 
 	// 同步订阅信息
-	err := h.subscriptionsService.SyncSubscriptions(ctx, userId, accountId)
+	count, err := h.subscriptionsService.SyncSubscriptions(ctx, userId, accountId)
 	if err != nil {
 		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	v1.HandleSuccess(ctx, nil)
+	v1.HandleSuccess(ctx, map[string]int{
+		"count": count,
+	})
 }
 
 // DeleteSubscriptions godoc

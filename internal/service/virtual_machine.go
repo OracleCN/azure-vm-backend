@@ -23,7 +23,7 @@ type VirtualMachineService interface {
 	ListVMsBySubscription(ctx context.Context, userID, accountID, subscriptionID string) ([]*model.VirtualMachine, error)
 
 	// SyncVMs 同步操作
-	SyncVMs(ctx context.Context, userID, accountID string) error
+	SyncVMs(ctx context.Context, userID, accountID string) (*v1.SyncStats, error)
 	SyncVMsBySubscription(ctx context.Context, userID, accountID, subscriptionID string) error
 
 	// CreateVM 虚拟机操作 - 这些接口暂时不实现
@@ -295,16 +295,17 @@ func (s *virtualMachineService) ListVMsBySubscription(ctx context.Context, userI
 }
 
 // SyncVMs 同步指定账号下的所有虚拟机信息
-func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID string) error {
+func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID string) (*v1.SyncStats, error) {
+	stats := &v1.SyncStats{}
 	// 检查用户是否有权限访问该账号
 	if err := s.checkAccountAccess(ctx, userID, accountID); err != nil {
-		return fmt.Errorf("access denied: %w", err)
+		return nil, fmt.Errorf("access denied: %w", err)
 	}
 
 	// 创建同步辅助结构体
 	helper, err := newSyncVMsHelper(s, ctx, userID, accountID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// 创建VM获取器
@@ -313,7 +314,7 @@ func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID s
 	// 获取最新的VM信息
 	vms, err := vmFetcher.FetchVMDetails(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to fetch VMs from Azure: %w", err)
+		return nil, fmt.Errorf("从 Azure 获取虚拟机失败: %w", err)
 	}
 
 	// 转换所有VM为数据库模型
@@ -321,17 +322,23 @@ func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID s
 	for _, vm := range vms {
 		dbVM, err := helper.convertVMToModel(vm)
 		if err != nil {
-			helper.logger.Error("Failed to convert VM",
+			helper.logger.Error("转换虚拟机失败",
 				zap.String("vmId", vm.ID),
 				zap.Error(err))
 			continue
 		}
+		switch dbVM.PowerState {
+		case "running":
+			stats.RunningVMs++
+		case "deallocated":
+			stats.StoppedVMs++
+		}
 		dbVMs = append(dbVMs, dbVM)
 	}
-
+	stats.TotalVMs = len(vms)
 	// 批量更新数据库
 	if err := s.virtualMachineRepository.BatchUpsert(ctx, dbVMs); err != nil {
-		return fmt.Errorf("更新数据库中的虚拟机失败: %w", err)
+		return nil, fmt.Errorf("更新数据库中的虚拟机失败: %w", err)
 	}
 
 	// 更新账户表中的虚拟机数量
@@ -340,14 +347,19 @@ func (s *virtualMachineService) SyncVMs(ctx context.Context, userID, accountID s
 			zap.String("accountID", accountID),
 			zap.String("vmCount", strconv.FormatInt(int64(len(vms)), 10)),
 			zap.Error(err))
-		return err
+		return nil, err
 	}
 
 	s.logger.Info("成功更新账户虚拟机数量",
 		zap.String("accountID", accountID),
 		zap.Int64("vmCount", int64(len(vms))))
-
-	return nil
+	// 返回同步成功多少台虚拟机，运行中多少台，已停止多少台
+	s.logger.Info("成功同步虚拟机信息",
+		zap.String("accountID", accountID),
+		zap.Int("totalVMs", stats.TotalVMs),
+		zap.Int("runningVMs", stats.RunningVMs),
+		zap.Int("stoppedVMs", stats.StoppedVMs))
+	return stats, nil
 }
 
 func (s *virtualMachineService) SyncVMsBySubscription(ctx context.Context, userID, accountID, subscriptionID string) error {

@@ -2,6 +2,7 @@ package azure
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -514,7 +515,9 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 		zap.String("provisioningState", details.State),
 		zap.Int32("osDiskSize", details.OSDiskSize),
 		zap.Int("dataDisksCount", len(details.DataDisks)))
-
+	// json 格式化输出details 对象
+	detailsJson, _ := json.Marshal(details)
+	fmt.Printf(string(detailsJson))
 	return details, nil
 }
 

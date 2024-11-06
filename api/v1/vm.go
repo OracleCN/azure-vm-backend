@@ -58,3 +58,10 @@ type VMQueryParams struct {
 	SortBy    string `json:"sortBy,omitempty"`
 	SortOrder string `json:"sortOrder,omitempty"`
 }
+
+// SyncStats 同步统计信息
+type SyncStats struct {
+	TotalVMs   int `json:"totalVMs"`   // 同步的总虚拟机数量
+	RunningVMs int `json:"runningVMs"` // 运行中的虚拟机数量
+	StoppedVMs int `json:"stoppedVMs"` // 已停止的虚拟机数量
+}

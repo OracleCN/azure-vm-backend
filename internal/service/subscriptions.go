@@ -19,7 +19,7 @@ type SubscriptionsService interface {
 	GetSubscription(ctx context.Context, userId, accountId, subscriptionId string) (*model.Subscriptions, error)
 
 	// SyncSubscriptions 同步指定账号的订阅信息
-	SyncSubscriptions(ctx context.Context, userId, accountId string) error
+	SyncSubscriptions(ctx context.Context, userId, accountId string) (int, error)
 
 	// DeleteSubscriptions 删除指定账号的所有订阅信息
 	DeleteSubscriptions(ctx context.Context, userId, accountId string) error
@@ -109,7 +109,7 @@ func (s *subscriptionsService) GetSubscription(ctx context.Context, userId, acco
 }
 
 // SyncSubscriptions 同步指定账号的订阅信息
-func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, accountId string) error {
+func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, accountId string) (int, error) {
 	// 1. 验证账户是否存在且属于该用户
 	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userId, accountId)
 	if err != nil {
@@ -118,11 +118,11 @@ func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, ac
 			zap.String("userId", userId),
 			zap.String("accountId", accountId),
 		)
-		return v1.ErrInternalServerError
+		return 0, v1.ErrInternalServerError
 	}
 
 	if account == nil {
-		return v1.ErrAccountError
+		return 0, v1.ErrAccountError
 	}
 
 	// 2. 创建Azure凭据
@@ -150,7 +150,7 @@ func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, ac
 				zap.String("accountId", accountId),
 			)
 		}
-		return v1.ErrInternalServerError
+		return 0, v1.ErrInternalServerError
 	}
 
 	// 4. 转换并保存数据
@@ -174,7 +174,7 @@ func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, ac
 			zap.Error(err),
 			zap.String("accountId", accountId),
 		)
-		return v1.ErrInternalServerError
+		return 0, v1.ErrInternalServerError
 	}
 
 	// 6. 更新账户状态为正常
@@ -186,8 +186,8 @@ func (s *subscriptionsService) SyncSubscriptions(ctx context.Context, userId, ac
 			zap.String("accountId", accountId),
 		)
 	}
-
-	return nil
+	// 返回 同步成功多少个订阅
+	return int(int64(len(subscriptions))), nil
 }
 
 // DeleteSubscriptions 删除指定账号的所有订阅信息

@@ -163,7 +163,7 @@ func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model
 		// 获取数据库中已存在的记录
 		var existingVMs []*model.VirtualMachine
 		if err := tx.Where("vm_id IN ?", vmIDs).Find(&existingVMs).Error; err != nil {
-			return fmt.Errorf("failed to query existing VMs: %w", err)
+			return fmt.Errorf("查询现有虚拟机失败: %w", err)
 		}
 
 		// 创建现有VM ID的映射，用于快速查找
