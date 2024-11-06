@@ -2,7 +2,6 @@ package azure
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v5"
@@ -41,9 +40,10 @@ type VMDetails struct {
 	CreatedTime time.Time         `json:"createdTime"`
 
 	// 配置信息
-	NumberOfCores int32 `json:"numberOfCores"`
-	MemoryInGB    int32 `json:"memoryInGB"`
-
+	NumberOfCores int32  `json:"numberOfCores"`
+	MemoryInGB    int32  `json:"memoryInGB"`
+	DnsAlias      string `json:"dnsAlias"`
+	PublicIPName  string `json:"publicIpName"`
 	// 获取时间
 	FetchedAt time.Time `json:"fetchedAt"`
 
@@ -421,7 +421,7 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 							// 获取私有 IP
 							if ipConfig.Properties.PrivateIPAddress != nil {
 								details.PrivateIPs = append(details.PrivateIPs, *ipConfig.Properties.PrivateIPAddress)
-								f.logger.Debug("Found private IP",
+								f.logger.Debug("找到子网 IP",
 									zap.String("vmName", details.Name),
 									zap.String("privateIP", *ipConfig.Properties.PrivateIPAddress))
 							}
@@ -431,6 +431,12 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 								pubIPResourceGroup := extractResourceGroupFromID(*ipConfig.Properties.PublicIPAddress.ID)
 								pubIPName := extractResourceNameFromID(*ipConfig.Properties.PublicIPAddress.ID)
 
+								details.PublicIPName = pubIPName
+
+								f.logger.Debug("找到公共 IP 资源",
+									zap.String("vmName", details.Name),
+									zap.String("publicIpName", pubIPName),
+									zap.String("resourceGroup", pubIPResourceGroup))
 								// 创建公网 IP 客户端
 								pubIPClient, err := armnetwork.NewPublicIPAddressesClient(subscriptionID, cred, nil)
 								if err != nil {
@@ -452,9 +458,27 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 
 								if pubIP.Properties != nil && pubIP.Properties.IPAddress != nil {
 									details.PublicIPs = append(details.PublicIPs, *pubIP.Properties.IPAddress)
-									f.logger.Debug("Found public IP",
+									f.logger.Debug("找到公共 IP",
 										zap.String("vmName", details.Name),
 										zap.String("publicIP", *pubIP.Properties.IPAddress))
+
+								}
+								if pubIP.Properties.DNSSettings != nil && pubIP.Properties.DNSSettings.Fqdn != nil {
+									details.DnsAlias = *pubIP.Properties.DNSSettings.Fqdn
+									f.logger.Debug("找到 DNS 别名",
+										zap.String("vmName", details.Name),
+										zap.String("dnsAlias", details.DnsAlias))
+								} else if pubIP.Properties.DNSSettings != nil && pubIP.Properties.DNSSettings.DomainNameLabel != nil {
+									// 如果没有完整的 FQDN，但有 domain name label，我们也可以记录它
+									domainLabel := *pubIP.Properties.DNSSettings.DomainNameLabel
+									if pubIP.Properties.DNSSettings.DomainNameLabel != nil {
+										// 构造完整的 FQDN
+										location := details.Location
+										details.DnsAlias = fmt.Sprintf("%s.%s.cloudapp.azure.com", domainLabel, location)
+										f.logger.Debug("根据域名标签构建 DNS 别名",
+											zap.String("vmName", details.Name),
+											zap.String("dnsAlias", details.DnsAlias))
+									}
 								}
 							}
 						}
@@ -516,9 +540,64 @@ func (f *VMFetcher) extractVMDetails(ctx context.Context, subscriptionID string,
 		zap.Int32("osDiskSize", details.OSDiskSize),
 		zap.Int("dataDisksCount", len(details.DataDisks)))
 	// json 格式化输出details 对象
-	detailsJson, _ := json.Marshal(details)
-	fmt.Printf(string(detailsJson))
 	return details, nil
+}
+
+// SetVMDNSLabel 为虚拟机设置 DNS 名称标签，返回设置后的FQDN
+func (f *VMFetcher) SetVMDNSLabel(ctx context.Context, subscriptionID, resourceGroup, publicIPName, dnsLabel string) (string, error) {
+	// 创建凭据
+	cred, err := createAzureCredential(f.credentials)
+	if err != nil {
+		return "", fmt.Errorf("创建Azure凭据失败: %w", err)
+	}
+	// 创建公共IP客户端
+	pipClient, err := armnetwork.NewPublicIPAddressesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("创建公共IP客户端失败: %w", err)
+	}
+	// 获取当前公共IP配置
+	pipResponse, err := pipClient.Get(ctx, resourceGroup, publicIPName, nil)
+	if err != nil {
+		return "", fmt.Errorf("获取公共IP配置失败: %w", err)
+	}
+	// 更新DNS设置
+	publicIP := pipResponse.PublicIPAddress
+	location := *publicIP.Location // 保存位置信息用于构造FQDN
+	if publicIP.Properties == nil {
+		publicIP.Properties = &armnetwork.PublicIPAddressPropertiesFormat{}
+	}
+	publicIP.Properties.DNSSettings = &armnetwork.PublicIPAddressDNSSettings{
+		DomainNameLabel: &dnsLabel,
+	}
+	// 应用更新
+	poller, err := pipClient.BeginCreateOrUpdate(ctx, resourceGroup, publicIPName, publicIP, nil)
+	if err != nil {
+		return "", fmt.Errorf("开始更新DNS标签失败: %w", err)
+	}
+	_, err = poller.Poll(ctx)
+	if err != nil {
+		return "", fmt.Errorf("更新DNS标签失败: %w", err)
+	}
+	// 验证更新
+	updatedPIP, err := pipClient.Get(ctx, resourceGroup, publicIPName, nil)
+	if err != nil {
+		return "", fmt.Errorf("验证DNS标签更新失败: %w", err)
+	}
+	// 检查更新是否成功
+	if updatedPIP.PublicIPAddress.Properties == nil ||
+		updatedPIP.PublicIPAddress.Properties.DNSSettings == nil ||
+		updatedPIP.PublicIPAddress.Properties.DNSSettings.DomainNameLabel == nil ||
+		*updatedPIP.PublicIPAddress.Properties.DNSSettings.DomainNameLabel != dnsLabel {
+		return "", fmt.Errorf("DNS标签未成功更新")
+	}
+	// 返回完整的FQDN
+	fqdn := fmt.Sprintf("%s.%s.cloudapp.azure.com", dnsLabel, location)
+	f.logger.Info("DNS名称设置成功",
+		zap.String("publicIPName", publicIPName),
+		zap.String("dnsLabel", dnsLabel),
+		zap.String("fqdn", fqdn))
+
+	return fqdn, nil
 }
 
 // extractResourceGroupFromID 从资源ID中提取资源组名称
