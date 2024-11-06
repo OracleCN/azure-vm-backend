@@ -120,7 +120,7 @@ func (h *syncVMsHelper) convertVMToModel(vm azure.VMDetails) (*model.VirtualMach
 	}
 	_, err := json.Marshal(networkInfo)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal network info: %w", err)
+		return nil, fmt.Errorf("未能调用网络信息: %w", err)
 	}
 
 	// 转换磁盘信息为JSON字符串
@@ -147,6 +147,10 @@ func (h *syncVMsHelper) convertVMToModel(vm azure.VMDetails) (*model.VirtualMach
 		Size:       vm.Size,
 		Status:     vm.State,
 		OSType:     vm.OSType,
+		OSImage:    vm.OSImage,
+		Core:       vm.NumberOfCores,
+		Memory:     vm.MemoryInGB,
+		DnsAlias:   vm.DnsAlias,
 		State:      vm.State,
 		PowerState: vm.PowerState,
 

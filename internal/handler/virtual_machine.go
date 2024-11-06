@@ -303,3 +303,18 @@ func (h *VirtualMachineHandler) DeleteVM(ctx *gin.Context) {
 
 	v1.HandleSuccess(ctx, nil)
 }
+
+// UpdateDNSLabel godoc
+// @Summary 更新虚拟机DNS标签
+// @Schemes
+// @Description 更新虚拟机DNS标签
+// @Tags 虚拟机模块
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param accountId path string true "账户ID"
+// @Success 200 {object} v1.Response
+// @Router /vms/update/dns/{accountId}/{vmId} [Post]
+func (h *VirtualMachineHandler) UpdateDNSLabel(ctx *gin.Context) {
+
+}

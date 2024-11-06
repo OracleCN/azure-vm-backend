@@ -249,11 +249,14 @@ func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model
 						"sync_status":    vm.SyncStatus,
 						"last_sync_at":   vm.LastSyncAt,
 						"updated_at":     now,
-						"created_time":   vm.CreatedTime,
+						"core":           vm.Core,
+						"memory":         vm.Memory,
+						"os_image":       vm.OSImage,
+						"dns_alias":      vm.DnsAlias,
 					}
 
 					if err := tx.Model(vm).Updates(updateFields).Error; err != nil {
-						return fmt.Errorf("failed to update VM %s: %w", vm.VMID, err)
+						return fmt.Errorf("更新虚拟机失败 %s: %w", vm.VMID, err)
 					}
 				}
 			}

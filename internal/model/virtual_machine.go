@@ -21,6 +21,10 @@ type VirtualMachine struct {
 	PrivateIPs     string    `gorm:"column:private_ips;type:text" json:"privateIps"` // JSON string array
 	PublicIPs      string    `gorm:"column:public_ips;type:text" json:"publicIps"`   // JSON string array
 	OSType         string    `gorm:"column:os_type;type:varchar(32)" json:"osType"`
+	OSImage        string    `gorm:"column:os_image;type:varchar(32)" json:"osImage"`
+	Core           int32     `gorm:"column:core;type:int" json:"core"`
+	Memory         int32     `gorm:"column:memory;type:int" json:"memory"`
+	DnsAlias       string    `gorm:"column:dns_alias;type:int" json:"dnsAlias"`
 	OSDiskSize     int       `gorm:"column:os_disk_size;type:integer" json:"osDiskSize"`
 	DataDisks      string    `gorm:"column:data_disks;type:text" json:"dataDisks"` // JSON array of disk objects
 	Tags           string    `gorm:"column:tags;type:text" json:"tags"`            // JSON object
