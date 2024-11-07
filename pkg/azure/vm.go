@@ -12,6 +12,22 @@ import (
 	"time"
 )
 
+// VMOperationType 虚拟机操作类型
+type VMOperationType string
+
+const (
+	VMOperationStart      VMOperationType = "Start"
+	VMOperationStop       VMOperationType = "Stop"
+	VMOperationRestart    VMOperationType = "Restart"
+	VMOperationDelete     VMOperationType = "Delete"
+	VMOperationDeallocate VMOperationType = "Deallocate"
+)
+
+// OperationOptions 操作配置选项
+type OperationOptions struct {
+	Force bool // 是否强制执行操作
+}
+
 // VMDetails 包含虚拟机的详细信息
 type VMDetails struct {
 	// 基本信息
@@ -598,6 +614,210 @@ func (f *VMFetcher) SetVMDNSLabel(ctx context.Context, subscriptionID, resourceG
 		zap.String("fqdn", fqdn))
 
 	return fqdn, nil
+}
+
+// VMOperation 执行虚拟机操作的统一接口
+func (f *VMFetcher) VMOperation(ctx context.Context, opType VMOperationType, vm VMDetails, opts *OperationOptions) error {
+	// 创建凭据
+	cred, err := createAzureCredential(f.credentials)
+	if err != nil {
+		return fmt.Errorf("创建Azure凭据失败: %w", err)
+	}
+
+	// 创建VM客户端
+	client, err := armcompute.NewVirtualMachinesClient(vm.SubscriptionID, cred, nil)
+	if err != nil {
+		return fmt.Errorf("创建虚拟机客户端失败: %w", err)
+	}
+
+	var operationErr error
+	switch opType {
+	case VMOperationStart:
+		operationErr = f.performStart(ctx, client, vm)
+	case VMOperationStop:
+		operationErr = f.performStop(ctx, client, vm, opts)
+	case VMOperationRestart:
+		operationErr = f.performRestart(ctx, client, vm)
+	case VMOperationDelete:
+		operationErr = f.performDelete(ctx, client, vm, opts)
+	case VMOperationDeallocate:
+		operationErr = f.performDeallocate(ctx, client, vm)
+	default:
+		return fmt.Errorf("不支持的操作类型: %s", opType)
+	}
+
+	if operationErr != nil {
+		f.logger.Error("执行虚拟机操作失败",
+			zap.String("operation", string(opType)),
+			zap.String("vmName", vm.Name),
+			zap.Error(operationErr))
+		return fmt.Errorf("执行虚拟机操作失败: %w", operationErr)
+	}
+
+	f.logger.Info("虚拟机操作执行成功",
+		zap.String("operation", string(opType)),
+		zap.String("vmName", vm.Name))
+
+	return nil
+}
+
+// performStart 执行启动操作
+func (f *VMFetcher) performStart(ctx context.Context, client *armcompute.VirtualMachinesClient, vm VMDetails) error {
+	poller, err := client.BeginStart(ctx, vm.ResourceGroup, vm.Name, nil)
+	if err != nil {
+		return fmt.Errorf("启动操作失败: %w", err)
+	}
+	_, err = poller.PollUntilDone(ctx, nil)
+	return err
+}
+
+// performStop 执行停止操作
+func (f *VMFetcher) performStop(ctx context.Context, client *armcompute.VirtualMachinesClient, vm VMDetails, opts *OperationOptions) error {
+	if opts != nil && opts.Force {
+		poller, err := client.BeginDeallocate(ctx, vm.ResourceGroup, vm.Name, nil)
+		if err != nil {
+			return fmt.Errorf("强制停止操作失败: %w", err)
+		}
+		_, err = poller.PollUntilDone(ctx, nil)
+		return err
+	} else {
+		poller, err := client.BeginPowerOff(ctx, vm.ResourceGroup, vm.Name, nil)
+		if err != nil {
+			return fmt.Errorf("正常关机操作失败: %w", err)
+		}
+		_, err = poller.PollUntilDone(ctx, nil)
+		return err
+	}
+}
+
+// performRestart 执行重启操作
+func (f *VMFetcher) performRestart(ctx context.Context, client *armcompute.VirtualMachinesClient, vm VMDetails) error {
+	poller, err := client.BeginRestart(ctx, vm.ResourceGroup, vm.Name, nil)
+	if err != nil {
+		return fmt.Errorf("重启操作失败: %w", err)
+	}
+	_, err = poller.PollUntilDone(ctx, nil)
+	return err
+}
+
+// performDeallocate 执行释放资源操作
+func (f *VMFetcher) performDeallocate(ctx context.Context, client *armcompute.VirtualMachinesClient, vm VMDetails) error {
+	poller, err := client.BeginDeallocate(ctx, vm.ResourceGroup, vm.Name, nil)
+	if err != nil {
+		return fmt.Errorf("释放资源操作失败: %w", err)
+	}
+	_, err = poller.PollUntilDone(ctx, nil)
+	return err
+}
+
+// performDelete 执行删除操作及清理相关资源
+func (f *VMFetcher) performDelete(ctx context.Context, client *armcompute.VirtualMachinesClient, vm VMDetails, opts *OperationOptions) error {
+	forceDeletion := opts != nil && opts.Force
+
+	// 1. 删除虚拟机
+	poller, err := client.BeginDelete(ctx, vm.ResourceGroup, vm.Name, &armcompute.VirtualMachinesClientBeginDeleteOptions{
+		ForceDeletion: &forceDeletion,
+	})
+	if err != nil {
+		return fmt.Errorf("删除虚拟机失败: %w", err)
+	}
+	_, err = poller.PollUntilDone(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("等待虚拟机删除完成失败: %w", err)
+	}
+
+	// 2. 清理相关资源
+	if err := f.cleanupVMResources(ctx, vm); err != nil {
+		f.logger.Error("清理虚拟机相关资源失败",
+			zap.Error(err),
+			zap.String("vmName", vm.Name))
+		// 继续执行，不返回错误
+	}
+
+	return nil
+}
+
+// cleanupVMResources 清理虚拟机相关资源
+func (f *VMFetcher) cleanupVMResources(ctx context.Context, vm VMDetails) error {
+	cred, err := createAzureCredential(f.credentials)
+	if err != nil {
+		return err
+	}
+
+	// 创建各种客户端
+	nicClient, err := armnetwork.NewInterfacesClient(vm.SubscriptionID, cred, nil)
+	if err == nil {
+		// 删除网络接口
+		for _, ip := range vm.PrivateIPs {
+			// 这里需要根据实际情况获取NIC名称
+			nicName := fmt.Sprintf("%s-nic,%s", vm.Name, ip)
+			if poller, err := nicClient.BeginDelete(ctx, vm.ResourceGroup, nicName, nil); err == nil {
+				_, _ = poller.PollUntilDone(ctx, nil)
+			}
+		}
+	}
+
+	// 删除公网IP
+	pipClient, err := armnetwork.NewPublicIPAddressesClient(vm.SubscriptionID, cred, nil)
+	if err == nil && vm.PublicIPName != "" {
+		if poller, err := pipClient.BeginDelete(ctx, vm.ResourceGroup, vm.PublicIPName, nil); err == nil {
+			_, _ = poller.PollUntilDone(ctx, nil)
+		}
+	}
+
+	// 删除磁盘
+	diskClient, err := armcompute.NewDisksClient(vm.SubscriptionID, cred, nil)
+	if err == nil {
+		// 删除OS磁盘
+		osDiskName := fmt.Sprintf("%s_OsDisk", vm.Name)
+		if poller, err := diskClient.BeginDelete(ctx, vm.ResourceGroup, osDiskName, nil); err == nil {
+			_, _ = poller.PollUntilDone(ctx, nil)
+		}
+
+		// 删除数据磁盘
+		for _, disk := range vm.DataDisks {
+			if poller, err := diskClient.BeginDelete(ctx, vm.ResourceGroup, disk.Name, nil); err == nil {
+				_, _ = poller.PollUntilDone(ctx, nil)
+			}
+		}
+	}
+
+	return nil
+}
+
+// GetVMStatus 获取虚拟机当前状态
+func (f *VMFetcher) GetVMStatus(ctx context.Context, subscriptionID, resourceGroup, vmName string) (string, error) {
+	cred, err := createAzureCredential(f.credentials)
+	if err != nil {
+		return "", fmt.Errorf("创建Azure凭据失败: %w", err)
+	}
+
+	client, err := armcompute.NewVirtualMachinesClient(subscriptionID, cred, nil)
+	if err != nil {
+		return "", fmt.Errorf("创建虚拟机客户端失败: %w", err)
+	}
+
+	instanceView, err := client.InstanceView(ctx, resourceGroup, vmName, nil)
+	if err != nil {
+		return "", fmt.Errorf("获取虚拟机状态失败: %w", err)
+	}
+
+	if instanceView.Statuses == nil {
+		return "Unknown", nil
+	}
+
+	var powerState string
+	for _, status := range instanceView.Statuses {
+		if status.Code == nil {
+			continue
+		}
+		if strings.HasPrefix(*status.Code, "PowerState/") {
+			powerState = strings.TrimPrefix(*status.Code, "PowerState/")
+			break
+		}
+	}
+
+	return powerState, nil
 }
 
 // extractResourceGroupFromID 从资源ID中提取资源组名称

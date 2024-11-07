@@ -28,10 +28,7 @@ type VirtualMachineService interface {
 
 	// CreateVM 虚拟机操作 - 这些接口暂时不实现
 	CreateVM(ctx context.Context, userID, accountID string, params *v1.VMCreateParams) (*model.VirtualMachine, error)
-	DeleteVM(ctx context.Context, userID, accountID, vmID string) error
-	StartVM(ctx context.Context, userID, accountID, vmID string) error
-	StopVM(ctx context.Context, userID, accountID, vmID string) error
-	RestartVM(ctx context.Context, userID, accountID, vmID string) error
+	OperateVM(ctx context.Context, userId, accountId, vmId string, opType v1.VMOperationType, force bool) error
 	// UpdateDNSLabel 更新DNS标签
 	UpdateDNSLabel(ctx context.Context, userId string, accountId string, vmId string, dnsLabel string) error
 }
@@ -455,28 +452,113 @@ func (s *virtualMachineService) CreateVM(ctx context.Context, userID, accountID 
 	return nil, v1.ErrNotImplemented
 }
 
-// DeleteVM 删除虚拟机 - 暂不实现
-func (s *virtualMachineService) DeleteVM(ctx context.Context, userID, accountID, vmID string) error {
-	// TODO: 预留删除虚拟机接口
-	return v1.ErrNotImplemented
-}
+func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId, vmId string, opType v1.VMOperationType, force bool) error {
+	// 1. 验证并获取上下文
+	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userId, accountId)
+	if err != nil {
+		s.logger.Error("获取账户信息失败",
+			zap.Error(err),
+			zap.String("userId", userId),
+			zap.String("accountId", accountId))
+		return v1.ErrInternalServerError
+	}
+	if account == nil {
+		return v1.ErrAccountError
+	}
 
-// StartVM 启动虚拟机 - 暂不实现
-func (s *virtualMachineService) StartVM(ctx context.Context, userID, accountID, vmID string) error {
-	// TODO: 预留启动虚拟机接口
-	return v1.ErrNotImplemented
-}
+	vm, err := s.virtualMachineRepository.GetByID(ctx, vmId)
+	if err != nil {
+		s.logger.Error("获取虚拟机信息失败",
+			zap.Error(err),
+			zap.String("vmId", vmId))
+		return v1.ErrInternalServerError
+	}
+	if vm == nil {
+		return v1.ErrorAzureNotFound
+	}
 
-// StopVM 停止虚拟机 - 暂不实现
-func (s *virtualMachineService) StopVM(ctx context.Context, userID, accountID, vmID string) error {
-	// TODO: 预留停止虚拟机接口
-	return v1.ErrNotImplemented
-}
+	if vm.AccountID != accountId {
+		return v1.ErrUnauthorized
+	}
 
-// RestartVM 重启虚拟机 - 暂不实现
-func (s *virtualMachineService) RestartVM(ctx context.Context, userID, accountID, vmID string) error {
-	// TODO: 预留重启虚拟机接口
-	return v1.ErrNotImplemented
+	// 2. 准备Azure操作
+	creds := &azure.Credentials{
+		TenantID:     account.Tenant,
+		ClientID:     account.AppID,
+		ClientSecret: account.PassWord,
+		DisplayName:  account.DisplayName,
+	}
+
+	fetcher := azure.NewVMFetcher(creds, s.logger.With(), 30*time.Second)
+
+	// 3. 映射操作类型和初始状态
+	var azureOpType azure.VMOperationType
+	initialStatus := ""
+	switch opType {
+	case v1.VMOperationStart:
+		azureOpType = azure.VMOperationStart
+		initialStatus = "Starting"
+	case v1.VMOperationStop:
+		azureOpType = azure.VMOperationStop
+		initialStatus = "Stopping"
+	case v1.VMOperationRestart:
+		azureOpType = azure.VMOperationRestart
+		initialStatus = "Restarting"
+	case v1.VMOperationDelete:
+		azureOpType = azure.VMOperationDelete
+		initialStatus = "Deleting"
+	default:
+		return v1.ErrBadRequest
+	}
+
+	// 4. 更新初始状态（对于删除操作也要更新状态，这样如果删除失败可以看到）
+	if err := s.virtualMachineRepository.UpdateStatus(ctx, vmId, initialStatus); err != nil {
+		s.logger.Error("更新虚拟机状态失败", zap.Error(err))
+	}
+
+	// 5. 执行操作
+	vmDetails := azure.VMDetails{
+		SubscriptionID: vm.SubscriptionID,
+		ResourceGroup:  vm.ResourceGroup,
+		Name:           vm.Name,
+	}
+
+	if err := fetcher.VMOperation(ctx, azureOpType, vmDetails, &azure.OperationOptions{Force: force}); err != nil {
+		s.logger.Error("执行虚拟机操作失败",
+			zap.Error(err),
+			zap.String("operation", string(opType)))
+		_ = s.virtualMachineRepository.UpdateStatus(ctx, vmId, "Error")
+		return v1.ErrInternalServerError
+	}
+
+	// 6. 根据操作类型处理结果
+	if opType == v1.VMOperationDelete {
+		// 删除操作成功后，直接删除数据库记录
+		if err := s.virtualMachineRepository.Delete(ctx, vmId); err != nil {
+			s.logger.Error("删除虚拟机数据库记录失败",
+				zap.Error(err),
+				zap.String("vmId", vmId))
+			return v1.ErrInternalServerError
+		}
+		return nil
+	}
+
+	// 7. 其他操作更新最终状态
+	finalStatus := ""
+	switch opType {
+	case v1.VMOperationStart:
+		finalStatus = "Running"
+	case v1.VMOperationStop:
+		if force {
+			finalStatus = "Deallocated"
+		} else {
+			finalStatus = "Stopped"
+		}
+	case v1.VMOperationRestart:
+		finalStatus = "Running"
+	}
+
+	return s.virtualMachineRepository.UpdateStatus(ctx, vmId, finalStatus)
 }
 
 func (s *virtualMachineService) UpdateDNSLabel(ctx context.Context, userId string, accountId string, vmId string, dnsLabel string) error {

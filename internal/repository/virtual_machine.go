@@ -270,10 +270,22 @@ func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model
 
 // UpdateStatus 更新虚拟机状态
 func (r *virtualMachineRepository) UpdateStatus(ctx context.Context, vmID string, status string) error {
-	// TODO: 实现更新虚拟机状态逻辑
-	// 1. 验证状态值是否合法
-	// 2. 更新虚拟机状态
-	// 3. 记录状态变更历史
+	result := r.DB(ctx).Model(&model.VirtualMachine{}).
+		Where("vm_id = ?", vmID).
+		Updates(map[string]interface{}{
+			"status":       status,
+			"sync_status":  "synced",
+			"last_sync_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		return fmt.Errorf("更新虚拟机状态失败: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("未找到虚拟机记录")
+	}
+
 	return nil
 }
 

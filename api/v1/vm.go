@@ -69,3 +69,18 @@ type SyncStats struct {
 type UpdateDNSLabelRequest struct {
 	DNSLabel string `json:"dnsLabel" binding:"required" example:"my-vm-dns"` // DNS标签
 }
+
+type VMOperationType string
+
+const (
+	VMOperationStart   VMOperationType = "start"
+	VMOperationStop    VMOperationType = "stop"
+	VMOperationRestart VMOperationType = "restart"
+	VMOperationDelete  VMOperationType = "delete"
+)
+
+// VMOperationRequest VM操作请求
+type VMOperationRequest struct {
+	Operation VMOperationType `json:"operation" binding:"required" example:"start"` // 操作类型
+	Force     bool            `json:"force" example:"false"`                        // 是否强制执行
+}

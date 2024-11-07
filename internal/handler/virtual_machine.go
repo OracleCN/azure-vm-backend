@@ -267,44 +267,6 @@ func (h *VirtualMachineHandler) CreateVM(ctx *gin.Context) {
 	v1.HandleSuccess(ctx, vm)
 }
 
-// DeleteVM godoc
-// @Summary 删除虚拟机
-// @Schemes
-// @Description 删除指定虚拟机(暂未实现)
-// @Tags 虚拟机模块
-// @Accept json
-// @Produce json
-// @Security Bearer
-// @Param accountId path string true "账户ID"
-// @Param vmId path string true "虚拟机ID"
-// @Success 200 {object} v1.Response
-// @Router /vms/{accountId}/{vmId} [delete]
-func (h *VirtualMachineHandler) DeleteVM(ctx *gin.Context) {
-	// 获取用户id
-	userId := GetUserIdFromCtx(ctx)
-	if userId == "" {
-		v1.HandleError(ctx, http.StatusUnauthorized, v1.ErrUnauthorized, nil)
-		return
-	}
-
-	// 获取账户ID和虚拟机ID
-	accountId := ctx.Param("accountId")
-	vmId := ctx.Param("vmId")
-	if accountId == "" || vmId == "" {
-		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
-		return
-	}
-
-	// 删除虚拟机
-	err := h.vmService.DeleteVM(ctx, userId, accountId, vmId)
-	if err != nil {
-		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
-		return
-	}
-
-	v1.HandleSuccess(ctx, nil)
-}
-
 // UpdateDNSLabel godoc
 // @Summary 更新虚拟机DNS标签
 // @Schemes
@@ -362,5 +324,61 @@ func (h *VirtualMachineHandler) UpdateDNSLabel(ctx *gin.Context) {
 	}
 
 	// 成功响应
+	v1.HandleSuccess(ctx, nil)
+}
+
+// OperateVM godoc
+// @Summary 执行虚拟机操作
+// @Schemes
+// @Description 对虚拟机执行指定操作（启动/停止/重启/删除）
+// @Tags 虚拟机模块
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param accountId path string true "账户ID"
+// @Param vmId path string true "虚拟机ID"
+// @Param request body v1.VMOperationRequest true "操作请求"
+// @Success 200 {object} v1.Response
+// @Router /vms/{accountId}/{vmId}/operate [post]
+func (h *VirtualMachineHandler) OperateVM(ctx *gin.Context) {
+	// 1. 获取用户ID
+	userId := GetUserIdFromCtx(ctx)
+	if userId == "" {
+		v1.HandleError(ctx, http.StatusUnauthorized, v1.ErrUnauthorized, nil)
+		return
+	}
+
+	// 2. 获取路径参数
+	accountId := ctx.Param("accountId")
+	vmId := ctx.Param("vmId")
+	if accountId == "" || vmId == "" {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 3. 解析请求体
+	var req v1.VMOperationRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 4. 执行操作
+	err := h.vmService.OperateVM(ctx, userId, accountId, vmId, req.Operation, req.Force)
+	if err != nil {
+		switch {
+		case errors.Is(err, v1.ErrUnauthorized):
+			v1.HandleError(ctx, http.StatusUnauthorized, err, nil)
+		case errors.Is(err, v1.ErrAccountError), errors.Is(err, v1.ErrBadRequest):
+			v1.HandleError(ctx, http.StatusBadRequest, err, nil)
+		case errors.Is(err, v1.ErrorAzureNotFound):
+			v1.HandleError(ctx, http.StatusNotFound, err, nil)
+		default:
+			v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
+		}
+		return
+	}
+
+	// 5. 返回成功
 	v1.HandleSuccess(ctx, nil)
 }

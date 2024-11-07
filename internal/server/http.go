@@ -112,7 +112,7 @@ func NewHTTPServer(
 			strictAuthRouter.POST("/vms/:accountId", vmHandler.CreateVM)
 
 			// 删除虚拟机（预留）
-			strictAuthRouter.DELETE("/vms/:accountId/instance/:vmId", vmHandler.DeleteVM)
+			strictAuthRouter.POST("/vms/:accountId/:vmId/operate ", vmHandler.OperateVM)
 		}
 	}
 
