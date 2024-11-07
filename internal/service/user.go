@@ -93,6 +93,8 @@ func (s *userService) GetProfile(ctx context.Context, userId string) (*v1.GetPro
 	return &v1.GetProfileResponseData{
 		UserId:   user.UserId,
 		Nickname: user.Nickname,
+		Email:    user.Email,
+		Avatar:   user.Avatar,
 		Roles:    []string{"admin"},
 	}, nil
 }
@@ -105,6 +107,12 @@ func (s *userService) UpdateProfile(ctx context.Context, userId string, req *v1.
 
 	user.Email = req.Email
 	user.Nickname = req.Nickname
+	user.Avatar = req.Avatar
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	user.Password = string(hashedPassword)
 
 	if err = s.userRepo.Update(ctx, user); err != nil {
 		return err
