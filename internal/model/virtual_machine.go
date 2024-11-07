@@ -18,8 +18,9 @@ type VirtualMachine struct {
 	Status         string    `gorm:"column:status;type:varchar(32);not null;default:Running" json:"status"`
 	State          string    `gorm:"column:state;type:varchar(32);not null" json:"state"`
 	PowerState     string    `gorm:"column:power_state;type:varchar(32);not null" json:"powerState"`
-	PrivateIPs     string    `gorm:"column:private_ips;type:text" json:"privateIps"` // JSON string array
-	PublicIPs      string    `gorm:"column:public_ips;type:text" json:"publicIps"`   // JSON string array
+	PrivateIPs     string    `gorm:"column:private_ips;type:text" json:"privateIps"`        // JSON string array
+	PublicIPs      string    `gorm:"column:public_ips;type:text" json:"publicIps"`          // JSON string array
+	PublicIPName   string    `gorm:"column:public_ip_name;varchar(64)" json:"publicIpName"` // JSON string array
 	OSType         string    `gorm:"column:os_type;type:varchar(32)" json:"osType"`
 	OSImage        string    `gorm:"column:os_image;type:varchar(32)" json:"osImage"`
 	Core           int32     `gorm:"column:core;type:int" json:"core"`

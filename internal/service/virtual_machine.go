@@ -32,6 +32,8 @@ type VirtualMachineService interface {
 	StartVM(ctx context.Context, userID, accountID, vmID string) error
 	StopVM(ctx context.Context, userID, accountID, vmID string) error
 	RestartVM(ctx context.Context, userID, accountID, vmID string) error
+	// UpdateDNSLabel 更新DNS标签
+	UpdateDNSLabel(ctx context.Context, userId string, accountId string, vmId string, dnsLabel string) error
 }
 
 func convertTags(tags map[string]string) string {
@@ -155,8 +157,9 @@ func (h *syncVMsHelper) convertVMToModel(vm azure.VMDetails) (*model.VirtualMach
 		PowerState: vm.PowerState,
 
 		// 网络配置
-		PrivateIPs: strings.Join(vm.PrivateIPs, ","),
-		PublicIPs:  strings.Join(vm.PublicIPs, ","),
+		PrivateIPs:   strings.Join(vm.PrivateIPs, ","),
+		PublicIPs:    strings.Join(vm.PublicIPs, ","),
+		PublicIPName: vm.PublicIPName,
 
 		// 磁盘配置
 		DataDisks:  string(diskJSON),
@@ -474,4 +477,85 @@ func (s *virtualMachineService) StopVM(ctx context.Context, userID, accountID, v
 func (s *virtualMachineService) RestartVM(ctx context.Context, userID, accountID, vmID string) error {
 	// TODO: 预留重启虚拟机接口
 	return v1.ErrNotImplemented
+}
+
+func (s *virtualMachineService) UpdateDNSLabel(ctx context.Context, userId string, accountId string, vmId string, dnsLabel string) error {
+	// 1. 验证用户权限和账户
+	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userId, accountId)
+	if err != nil {
+		s.logger.Error("获取账户信息失败",
+			zap.Error(err),
+			zap.String("userId", userId),
+			zap.String("accountId", accountId),
+		)
+		return v1.ErrInternalServerError
+	}
+
+	if account == nil {
+		return v1.ErrAccountError
+	}
+
+	// 2. 获取虚拟机信息
+	vm, err := s.virtualMachineRepository.GetByID(ctx, vmId)
+	if err != nil {
+		s.logger.Error("获取虚拟机信息失败",
+			zap.Error(err),
+			zap.String("vmId", vmId),
+		)
+		return v1.ErrInternalServerError
+	}
+
+	if vm == nil {
+		return v1.ErrorAzureNotFound
+	}
+
+	// 3. 验证虚拟机属于指定账户
+	if vm.AccountID != accountId {
+		return v1.ErrUnauthorized
+	}
+
+	// 4. 创建Azure凭据
+	creds := &azure.Credentials{
+		TenantID:     account.Tenant,
+		ClientID:     account.AppID,
+		ClientSecret: account.PassWord,
+		DisplayName:  account.DisplayName,
+	}
+
+	// 5. 更新Azure云上的DNS标签
+	fetcher := azure.NewVMFetcher(creds, s.logger.With(), 30*time.Second)
+	fqdn, err := fetcher.SetVMDNSLabel(
+		ctx,
+		vm.SubscriptionID,
+		vm.ResourceGroup,
+		vm.PublicIPName,
+		dnsLabel,
+	)
+	if err != nil {
+		s.logger.Error("更新Azure DNS标签失败",
+			zap.Error(err),
+			zap.String("vmId", vmId),
+			zap.String("dnsLabel", dnsLabel),
+		)
+		return v1.ErrInternalServerError
+	}
+
+	// 6. 更新本地数据库中的DNS记录
+	err = s.virtualMachineRepository.UpdateDNSLabel(ctx, vmId, fqdn)
+	if err != nil {
+		s.logger.Error("更新本地DNS记录失败",
+			zap.Error(err),
+			zap.String("vmId", vmId),
+			zap.String("dnsLabel", dnsLabel),
+		)
+		return v1.ErrInternalServerError
+	}
+
+	s.logger.Info("DNS标签更新成功",
+		zap.String("vmId", vmId),
+		zap.String("dnsLabel", dnsLabel),
+		zap.String("fqdn", fqdn),
+	)
+
+	return nil
 }

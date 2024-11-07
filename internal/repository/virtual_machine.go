@@ -36,6 +36,7 @@ type VirtualMachineRepository interface {
 	BatchUpsert(ctx context.Context, vms []*model.VirtualMachine) error
 	// UpdateStatus 状态相关操作
 	UpdateStatus(ctx context.Context, vmID string, status string) error
+	UpdateDNSLabel(ctx context.Context, vmID string, dnsLabel string) error
 }
 
 func NewVirtualMachineRepository(
@@ -241,6 +242,7 @@ func (r *virtualMachineRepository) BatchUpsert(ctx context.Context, vms []*model
 						"state":          vm.State,
 						"private_ips":    vm.PrivateIPs,
 						"public_ips":     vm.PublicIPs,
+						"public_ip_name": vm.PublicIPName,
 						"os_type":        vm.OSType,
 						"os_disk_size":   vm.OSDiskSize,
 						"data_disks":     vm.DataDisks,
@@ -298,4 +300,21 @@ func (r *virtualMachineRepository) ListByAccountAndSubscription(ctx context.Cont
 		SubscriptionID: subscriptionID,
 		Query:          query,
 	})
+}
+func (r *virtualMachineRepository) UpdateDNSLabel(ctx context.Context, vmID string, dnsLabel string) error {
+	result := r.DB(ctx).Model(&model.VirtualMachine{}).
+		Where("vm_id = ?", vmID).
+		Updates(map[string]interface{}{
+			"dns_alias": dnsLabel,
+		})
+
+	if result.Error != nil {
+		return fmt.Errorf("更新DNS标签失败: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("未找到虚拟机记录")
+	}
+
+	return nil
 }

@@ -65,3 +65,7 @@ type SyncStats struct {
 	RunningVMs int `json:"runningVMs"` // 运行中的虚拟机数量
 	StoppedVMs int `json:"stoppedVMs"` // 已停止的虚拟机数量
 }
+
+type UpdateDNSLabelRequest struct {
+	DNSLabel string `json:"dnsLabel" binding:"required" example:"my-vm-dns"` // DNS标签
+}

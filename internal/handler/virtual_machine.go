@@ -3,6 +3,7 @@ package handler
 import (
 	v1 "azure-vm-backend/api/v1"
 	"azure-vm-backend/internal/service"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -316,5 +317,50 @@ func (h *VirtualMachineHandler) DeleteVM(ctx *gin.Context) {
 // @Success 200 {object} v1.Response
 // @Router /vms/update/dns/{accountId}/{vmId} [Post]
 func (h *VirtualMachineHandler) UpdateDNSLabel(ctx *gin.Context) {
+	// 获取用户id
+	userId := GetUserIdFromCtx(ctx)
+	if userId == "" {
+		v1.HandleError(ctx, http.StatusUnauthorized, v1.ErrUnauthorized, nil)
+		return
+	}
 
+	// 获取路径参数
+	accountId := ctx.Param("accountId")
+	vmId := ctx.Param("vmId")
+	if accountId == "" || vmId == "" {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 解析请求体
+	var req v1.UpdateDNSLabelRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 参数验证
+	if req.DNSLabel == "" {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 调用服务层更新DNS标签
+	err := h.vmService.UpdateDNSLabel(ctx, userId, accountId, vmId, req.DNSLabel)
+	if err != nil {
+		switch {
+		case errors.Is(err, v1.ErrUnauthorized):
+			v1.HandleError(ctx, http.StatusUnauthorized, err, nil)
+		case errors.Is(err, v1.ErrAccountError):
+			v1.HandleError(ctx, http.StatusBadRequest, err, nil)
+		case errors.Is(err, v1.ErrorAzureNotFound):
+			v1.HandleError(ctx, http.StatusNotFound, err, nil)
+		default:
+			v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
+		}
+		return
+	}
+
+	// 成功响应
+	v1.HandleSuccess(ctx, nil)
 }
