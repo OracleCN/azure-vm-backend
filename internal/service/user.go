@@ -76,7 +76,7 @@ func (s *userService) Login(ctx context.Context, req *v1.LoginRequest) (string, 
 	if err != nil {
 		return "", err
 	}
-	token, err := s.jwt.GenToken(user.UserId, time.Now().Add(time.Hour*24*90))
+	token, err := s.jwt.GenToken(user.UserId, time.Now().Add(time.Hour*24*1))
 	if err != nil {
 		return "", err
 	}
