@@ -21,6 +21,7 @@ type QueryVMsOptions struct {
 type VirtualMachineRepository interface {
 	Create(ctx context.Context, vm *model.VirtualMachine) error
 	GetByID(ctx context.Context, vmID string) (*model.VirtualMachine, error)
+	GetVM(ctx context.Context, ID string) (*model.VirtualMachine, error)
 	Update(ctx context.Context, vm *model.VirtualMachine) error
 	Delete(ctx context.Context, vmID string) error
 
@@ -123,6 +124,16 @@ func (r *virtualMachineRepository) GetByID(ctx context.Context, vmID string) (*m
 	var vm model.VirtualMachine
 
 	result := r.DB(ctx).Where("vm_id = ?", vmID).First(&vm)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return &vm, nil
+}
+func (r *virtualMachineRepository) GetVM(ctx context.Context, ID string) (*model.VirtualMachine, error) {
+	var vm model.VirtualMachine
+
+	result := r.DB(ctx).Where("id = ?", ID).First(&vm)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -273,7 +284,7 @@ func (r *virtualMachineRepository) UpdateStatus(ctx context.Context, vmID string
 	result := r.DB(ctx).Model(&model.VirtualMachine{}).
 		Where("vm_id = ?", vmID).
 		Updates(map[string]interface{}{
-			"status":       status,
+			"power_state":  status,
 			"sync_status":  "synced",
 			"last_sync_at": time.Now(),
 		})

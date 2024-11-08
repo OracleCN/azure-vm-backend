@@ -28,9 +28,9 @@ type VirtualMachineService interface {
 
 	// CreateVM 虚拟机操作 - 这些接口暂时不实现
 	CreateVM(ctx context.Context, userID, accountID string, params *v1.VMCreateParams) (*model.VirtualMachine, error)
-	OperateVM(ctx context.Context, userId, accountId, vmId string, opType v1.VMOperationType, force bool) error
+	OperateVM(ctx context.Context, userId, accountId, id string, opType v1.VMOperationType, force bool) error
 	// UpdateDNSLabel 更新DNS标签
-	UpdateDNSLabel(ctx context.Context, userId string, accountId string, vmId string, dnsLabel string) error
+	UpdateDNSLabel(ctx context.Context, userId string, accountId string, ID string, dnsLabel string) error
 }
 
 func convertTags(tags map[string]string) string {
@@ -452,7 +452,7 @@ func (s *virtualMachineService) CreateVM(ctx context.Context, userID, accountID 
 	return nil, v1.ErrNotImplemented
 }
 
-func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId, vmId string, opType v1.VMOperationType, force bool) error {
+func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId, id string, opType v1.VMOperationType, force bool) error {
 	// 1. 验证并获取上下文
 	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userId, accountId)
 	if err != nil {
@@ -466,11 +466,11 @@ func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId
 		return v1.ErrAccountError
 	}
 
-	vm, err := s.virtualMachineRepository.GetByID(ctx, vmId)
+	vm, err := s.virtualMachineRepository.GetVM(ctx, id)
 	if err != nil {
 		s.logger.Error("获取虚拟机信息失败",
 			zap.Error(err),
-			zap.String("vmId", vmId))
+			zap.String("vmId", vm.VMID))
 		return v1.ErrInternalServerError
 	}
 	if vm == nil {
@@ -497,7 +497,7 @@ func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId
 	switch opType {
 	case v1.VMOperationStart:
 		azureOpType = azure.VMOperationStart
-		initialStatus = "Starting"
+		initialStatus = "Running"
 	case v1.VMOperationStop:
 		azureOpType = azure.VMOperationStop
 		initialStatus = "Stopping"
@@ -512,7 +512,7 @@ func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId
 	}
 
 	// 4. 更新初始状态（对于删除操作也要更新状态，这样如果删除失败可以看到）
-	if err := s.virtualMachineRepository.UpdateStatus(ctx, vmId, initialStatus); err != nil {
+	if err := s.virtualMachineRepository.UpdateStatus(ctx, vm.VMID, initialStatus); err != nil {
 		s.logger.Error("更新虚拟机状态失败", zap.Error(err))
 	}
 
@@ -527,17 +527,17 @@ func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId
 		s.logger.Error("执行虚拟机操作失败",
 			zap.Error(err),
 			zap.String("operation", string(opType)))
-		_ = s.virtualMachineRepository.UpdateStatus(ctx, vmId, "Error")
+		_ = s.virtualMachineRepository.UpdateStatus(ctx, vm.VMID, "Error")
 		return v1.ErrInternalServerError
 	}
 
 	// 6. 根据操作类型处理结果
 	if opType == v1.VMOperationDelete {
 		// 删除操作成功后，直接删除数据库记录
-		if err := s.virtualMachineRepository.Delete(ctx, vmId); err != nil {
+		if err := s.virtualMachineRepository.Delete(ctx, vm.VMID); err != nil {
 			s.logger.Error("删除虚拟机数据库记录失败",
 				zap.Error(err),
-				zap.String("vmId", vmId))
+				zap.String("vmId", vm.VMID))
 			return v1.ErrInternalServerError
 		}
 		return nil
@@ -558,10 +558,10 @@ func (s *virtualMachineService) OperateVM(ctx context.Context, userId, accountId
 		finalStatus = "Running"
 	}
 
-	return s.virtualMachineRepository.UpdateStatus(ctx, vmId, finalStatus)
+	return s.virtualMachineRepository.UpdateStatus(ctx, vm.VMID, finalStatus)
 }
 
-func (s *virtualMachineService) UpdateDNSLabel(ctx context.Context, userId string, accountId string, vmId string, dnsLabel string) error {
+func (s *virtualMachineService) UpdateDNSLabel(ctx context.Context, userId string, accountId string, ID string, dnsLabel string) error {
 	// 1. 验证用户权限和账户
 	account, err := s.accountsRepository.GetAccountByUserIdAndAccountId(ctx, userId, accountId)
 	if err != nil {
@@ -578,11 +578,11 @@ func (s *virtualMachineService) UpdateDNSLabel(ctx context.Context, userId strin
 	}
 
 	// 2. 获取虚拟机信息
-	vm, err := s.virtualMachineRepository.GetByID(ctx, vmId)
+	vm, err := s.virtualMachineRepository.GetVM(ctx, ID)
 	if err != nil {
 		s.logger.Error("获取虚拟机信息失败",
 			zap.Error(err),
-			zap.String("vmId", vmId),
+			zap.String("vmId", vm.VMID),
 		)
 		return v1.ErrInternalServerError
 	}
@@ -616,25 +616,25 @@ func (s *virtualMachineService) UpdateDNSLabel(ctx context.Context, userId strin
 	if err != nil {
 		s.logger.Error("更新Azure DNS标签失败",
 			zap.Error(err),
-			zap.String("vmId", vmId),
+			zap.String("vmId", vm.VMID),
 			zap.String("dnsLabel", dnsLabel),
 		)
 		return v1.ErrInternalServerError
 	}
 
 	// 6. 更新本地数据库中的DNS记录
-	err = s.virtualMachineRepository.UpdateDNSLabel(ctx, vmId, fqdn)
+	err = s.virtualMachineRepository.UpdateDNSLabel(ctx, vm.VMID, fqdn)
 	if err != nil {
 		s.logger.Error("更新本地DNS记录失败",
 			zap.Error(err),
-			zap.String("vmId", vmId),
+			zap.String("vmId", vm.VMID),
 			zap.String("dnsLabel", dnsLabel),
 		)
 		return v1.ErrInternalServerError
 	}
 
 	s.logger.Info("DNS标签更新成功",
-		zap.String("vmId", vmId),
+		zap.String("vmId", vm.VMID),
 		zap.String("dnsLabel", dnsLabel),
 		zap.String("fqdn", fqdn),
 	)

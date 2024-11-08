@@ -277,7 +277,7 @@ func (h *VirtualMachineHandler) CreateVM(ctx *gin.Context) {
 // @Security Bearer
 // @Param accountId path string true "账户ID"
 // @Success 200 {object} v1.Response
-// @Router /vms/update/dns/{accountId}/{vmId} [Post]
+// @Router /vms/update/dns/{accountId}/{ID} [Post]
 func (h *VirtualMachineHandler) UpdateDNSLabel(ctx *gin.Context) {
 	// 获取用户id
 	userId := GetUserIdFromCtx(ctx)
@@ -288,8 +288,8 @@ func (h *VirtualMachineHandler) UpdateDNSLabel(ctx *gin.Context) {
 
 	// 获取路径参数
 	accountId := ctx.Param("accountId")
-	vmId := ctx.Param("vmId")
-	if accountId == "" || vmId == "" {
+	ID := ctx.Param("ID")
+	if accountId == "" || ID == "" {
 		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
 		return
 	}
@@ -308,7 +308,7 @@ func (h *VirtualMachineHandler) UpdateDNSLabel(ctx *gin.Context) {
 	}
 
 	// 调用服务层更新DNS标签
-	err := h.vmService.UpdateDNSLabel(ctx, userId, accountId, vmId, req.DNSLabel)
+	err := h.vmService.UpdateDNSLabel(ctx, userId, accountId, ID, req.DNSLabel)
 	if err != nil {
 		switch {
 		case errors.Is(err, v1.ErrUnauthorized):
@@ -350,8 +350,8 @@ func (h *VirtualMachineHandler) OperateVM(ctx *gin.Context) {
 
 	// 2. 获取路径参数
 	accountId := ctx.Param("accountId")
-	vmId := ctx.Param("vmId")
-	if accountId == "" || vmId == "" {
+	id := ctx.Param("id")
+	if accountId == "" || id == "" {
 		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
 		return
 	}
@@ -364,7 +364,7 @@ func (h *VirtualMachineHandler) OperateVM(ctx *gin.Context) {
 	}
 
 	// 4. 执行操作
-	err := h.vmService.OperateVM(ctx, userId, accountId, vmId, req.Operation, req.Force)
+	err := h.vmService.OperateVM(ctx, userId, accountId, id, req.Operation, req.Force)
 	if err != nil {
 		switch {
 		case errors.Is(err, v1.ErrUnauthorized):
