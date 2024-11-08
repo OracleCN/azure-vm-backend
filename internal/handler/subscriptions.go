@@ -32,7 +32,7 @@ func NewSubscriptionsHandler(
 // @Security Bearer
 // @Param accountId path string true "账户ID"
 // @Success 200 {object} v1.Response
-// @Router /subscriptions/{accountId} [get]
+// @Router /subscriptions/{accountId} [post]
 func (h *SubscriptionsHandler) GetSubscriptions(ctx *gin.Context) {
 	// 获取用户id
 	userId := GetUserIdFromCtx(ctx)
