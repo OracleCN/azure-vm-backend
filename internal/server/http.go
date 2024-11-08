@@ -92,7 +92,6 @@ func NewHTTPServer(
 
 			// 虚拟机接口
 			// 查询虚拟机列表(支持过滤、分页等)
-			// 查询虚拟机列表(支持过滤、分页等)
 			strictAuthRouter.GET("/vms", vmHandler.ListVMs)
 
 			// 获取单个虚拟机详细信息
@@ -107,12 +106,13 @@ func NewHTTPServer(
 			// 同步指定订阅下的虚拟机
 			strictAuthRouter.POST("/vms/:accountId/subscription/:subscriptionId/sync", vmHandler.SyncVMsBySubscription)
 
-			// 预留的虚拟机管理接口
 			// 创建虚拟机（预留）
 			strictAuthRouter.POST("/vms/:accountId", vmHandler.CreateVM)
 
-			// 删除虚拟机（预留）
-			strictAuthRouter.POST("/vms/:accountId/:vmId/operate ", vmHandler.OperateVM)
+			strictAuthRouter.POST("/vms/:accountId/:id/operate", vmHandler.OperateVM)
+
+			// 更新虚拟机dns标签
+			strictAuthRouter.POST("/vms/update/dns/:accountId/:ID", vmHandler.UpdateDNSLabel)
 		}
 	}
 
