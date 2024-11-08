@@ -18,10 +18,11 @@ type LoginResponse struct {
 }
 
 type UpdateProfileRequest struct {
-	Nickname string `json:"nickname" example:"alan"`
-	Email    string `json:"email" binding:"required,email" example:"1234@gmail.com"`
-	Password string `json:"password" binding:"required" example:"123456"`
-	Avatar   string `json:"avatar" example:"https://www.baidu.com/1.jpg"`
+	Nickname        string `json:"nickname,omitempty" example:"alan"`
+	Email           string `json:"email,omitempty" binding:"omitempty,email" example:"1234@gmail.com"`
+	ConfirmPassword string `json:"confirmPassword,omitempty" example:"123456"`
+	Avatar          string `json:"avatar,omitempty" example:"https://www.baidu.com/1.jpg"`
+	OldPassword     string `json:"oldPassword,omitempty" example:"123456"`
 }
 type GetProfileResponseData struct {
 	UserId   string   `json:"userId"`

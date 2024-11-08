@@ -15,6 +15,7 @@ type UserService interface {
 	GetProfile(ctx context.Context, userId string) (*v1.GetProfileResponseData, error)
 	UpdateProfile(ctx context.Context, userId string, req *v1.UpdateProfileRequest) error
 }
+type UserUpdater func(user *model.User) error
 
 func NewUserService(
 	service *Service,
@@ -98,25 +99,67 @@ func (s *userService) GetProfile(ctx context.Context, userId string) (*v1.GetPro
 		Roles:    []string{"admin"},
 	}, nil
 }
-
 func (s *userService) UpdateProfile(ctx context.Context, userId string, req *v1.UpdateProfileRequest) error {
 	user, err := s.userRepo.GetByID(ctx, userId)
 	if err != nil {
 		return err
 	}
 
-	user.Email = req.Email
-	user.Nickname = req.Nickname
-	user.Avatar = req.Avatar
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		return err
-	}
-	user.Password = string(hashedPassword)
-
-	if err = s.userRepo.Update(ctx, user); err != nil {
-		return err
+	updaters := []UserUpdater{
+		s.updateBasicInfo(req),
+		s.updatePassword(req),
 	}
 
-	return nil
+	for _, update := range updaters {
+		if err := update(user); err != nil {
+			return err
+		}
+	}
+
+	return s.userRepo.Update(ctx, user)
+}
+
+// 更新基本信息
+func (s *userService) updateBasicInfo(req *v1.UpdateProfileRequest) UserUpdater {
+	return func(user *model.User) error {
+		if req.Email != "" {
+			user.Email = req.Email
+		}
+		if req.Nickname != "" {
+			user.Nickname = req.Nickname
+		}
+		if req.Avatar != "" {
+			user.Avatar = req.Avatar
+		}
+		return nil
+	}
+}
+
+// 更新密码
+func (s *userService) updatePassword(req *v1.UpdateProfileRequest) UserUpdater {
+	return func(user *model.User) error {
+		// 如果没有新密码，跳过密码更新
+		if req.ConfirmPassword == "" {
+			return nil
+		}
+
+		// 验证旧密码存在
+		if req.OldPassword == "" {
+			return v1.ErrPasswordError
+		}
+
+		// 验证旧密码正确性
+		if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.OldPassword)); err != nil {
+			return v1.ErrPasswordError
+		}
+
+		// 加密新密码
+		hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.ConfirmPassword), bcrypt.DefaultCost)
+		if err != nil {
+			return err
+		}
+
+		user.Password = string(hashedPassword)
+		return nil
+	}
 }

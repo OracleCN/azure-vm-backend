@@ -27,4 +27,7 @@ var (
 	ErrSubscriptionNotFound = newError(1006, "no Available Subscriptions Found")
 
 	ErrNotImplemented = newError(1007, "Not Implemented")
+
+	// ErrPasswordError 密码错误
+	ErrPasswordError = newError(1008, "Password Error")
 )
