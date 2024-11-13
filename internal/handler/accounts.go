@@ -3,6 +3,7 @@ package handler
 import (
 	v1 "azure-vm-backend/api/v1"
 	"azure-vm-backend/internal/service"
+	"azure-vm-backend/pkg/app"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -31,7 +32,7 @@ func NewAccountsHandler(
 // @Produce json
 // @Security Bearer
 // @Success 200 {object} v1.Response
-// @Router /accounts/list [get]
+// @Router /accounts/list [post]
 func (h *AccountsHandler) ListAccounts(ctx *gin.Context) {
 	// 获取用户id
 	userId := GetUserIdFromCtx(ctx)
@@ -40,15 +41,36 @@ func (h *AccountsHandler) ListAccounts(ctx *gin.Context) {
 		return
 	}
 
+	var req v1.AccountListReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 创建查询选项
+	option := &app.QueryOption{
+		Pagination: app.Pagination{
+			Page:     req.Page,
+			PageSize: req.PageSize,
+		},
+		Filters: map[string]string{
+			"search": req.Search,
+		},
+	}
+
+	// 验证并填充默认值
+	option = app.ValidateAndFillQueryOption(option)
+
 	// 调用service层获取账户列表
-	accounts, err := h.accountsService.GetAccountList(ctx, userId)
+	result, err := h.accountsService.GetAccountList(ctx, userId, option)
 	if err != nil {
 		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
 		return
 	}
 
-	// 返回成功响应
-	v1.HandleSuccess(ctx, accounts)
+	// 转换并返回响应
+	resp := v1.ToAccountListResp(result)
+	v1.HandleSuccess(ctx, resp)
 }
 
 // GetAccount godoc
@@ -207,4 +229,39 @@ func (h *AccountsHandler) DeleteAccounts(ctx *gin.Context) {
 	v1.HandleSuccess(ctx, gin.H{
 		"deletedCount": "ok",
 	})
+}
+
+// SyncAccounts godoc
+// @Summary 同步Azure账户
+// @Schemes
+// @Description 同步Azure账户
+// @Tags 账户模块
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param ids query string true "[]"
+// @Success 200 {object} v1.Response
+// @Router /accounts/delete [post]
+func (h *AccountsHandler) SyncAccounts(ctx *gin.Context) {
+	// 获取用户id
+	userId := GetUserIdFromCtx(ctx)
+	if userId == "" {
+		v1.HandleError(ctx, http.StatusUnauthorized, v1.ErrUnauthorized, nil)
+		return
+	}
+
+	var req v1.SyncAccountReq
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 调用service层进行同步
+	result, err := h.accountsService.SyncAccounts(ctx, userId, req.AccountIds)
+	if err != nil {
+		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	v1.HandleSuccess(ctx, result)
 }

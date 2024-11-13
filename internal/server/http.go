@@ -79,10 +79,12 @@ func NewHTTPServer(
 
 			strictAuthRouter.POST("/accounts/update/:id", accountsHandler.UpdateAccount)
 			strictAuthRouter.GET("/accounts/:id", accountsHandler.GetAccount)
+			strictAuthRouter.POST("/accounts/sync", accountsHandler.SyncAccounts)
 
 			// 订阅接口
 			// 获取指定账号的所有订阅
-			strictAuthRouter.POST("/subscriptions/:accountId", subHandler.GetSubscriptions)
+			strictAuthRouter.POST("/subscriptions/get/:accountId", subHandler.GetSubscriptions)
+			strictAuthRouter.POST("/subscriptions/list", subHandler.ListSubscriptions)
 			// 获取指定订阅的详细信息
 			strictAuthRouter.GET("/subscriptions/:accountId/:subscriptionId", subHandler.GetSubscription)
 			// 同步指定账号的订阅信息

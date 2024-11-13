@@ -4,13 +4,16 @@ import (
 	v1 "azure-vm-backend/api/v1"
 	"azure-vm-backend/internal/model"
 	"azure-vm-backend/internal/repository"
+	"azure-vm-backend/pkg/app"
 	"azure-vm-backend/pkg/azure"
 	"context"
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
+	"strings"
 	"time"
 )
 
@@ -18,24 +21,31 @@ type AccountsService interface {
 	// CreateAccount 创建账户
 	CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) (string, error)
 	GetAccount(ctx context.Context, userId string, loginMail string) (*model.Accounts, error)
-	GetAccountList(ctx context.Context, userId string) ([]*model.Accounts, error)
+	GetAccountList(ctx context.Context, userId string, option *app.QueryOption) (*app.ListResult[*model.Accounts], error)
 	DeleteAccount(ctx context.Context, userId string, accountIds []string) error
 	UpdateAccount(ctx context.Context, userId string, accountId string, req *v1.UpdateAccountReq) error
+	SyncAccounts(ctx context.Context, userId string, accountIds []string) (*v1.SyncAccountResp, error)
+}
+
+type accountsService struct {
+	*Service
+	accountsRepo          repository.AccountsRepository
+	subscriptionsService  SubscriptionsService  // 添加订阅服务
+	virtualMachineService VirtualMachineService // 添加虚拟机服务
 }
 
 func NewAccountsService(
 	service *Service,
 	accountsRepo repository.AccountsRepository,
+	subscriptionsService SubscriptionsService,
+	virtualMachineService VirtualMachineService,
 ) AccountsService {
 	return &accountsService{
-		Service:      service,
-		accountsRepo: accountsRepo,
+		Service:               service,
+		accountsRepo:          accountsRepo,
+		subscriptionsService:  subscriptionsService,
+		virtualMachineService: virtualMachineService,
 	}
-}
-
-type accountsService struct {
-	*Service
-	accountsRepo repository.AccountsRepository
 }
 
 func (s *accountsService) CreateAccount(ctx context.Context, userId string, req *v1.CreateAccountReq) (string, error) {
@@ -122,8 +132,8 @@ func (s *accountsService) GetAccount(ctx context.Context, userId string, loginMa
 	return email, nil
 }
 
-func (s *accountsService) GetAccountList(ctx context.Context, userId string) ([]*model.Accounts, error) {
-	accounts, err := s.accountsRepo.GetAccountsByUserId(ctx, userId)
+func (s *accountsService) GetAccountList(ctx context.Context, userId string, option *app.QueryOption) (*app.ListResult[*model.Accounts], error) {
+	result, err := s.accountsRepo.GetAccountsByUserId(ctx, userId, option)
 	if err != nil {
 		s.logger.Error("获取用户账户列表失败",
 			zap.Error(err),
@@ -132,18 +142,11 @@ func (s *accountsService) GetAccountList(ctx context.Context, userId string) ([]
 		return nil, v1.ErrInternalServerError
 	}
 
-	if len(accounts) == 0 {
-		s.logger.Info("用户暂无账户",
-			zap.String("user_id", userId),
-		)
-		return []*model.Accounts{}, nil // 返回空切片而不是nil
-	}
-
 	s.logger.Info("成功获取用户账户列表",
 		zap.String("user_id", userId),
-		zap.Int("count", len(accounts)),
+		zap.Int("count", len(result.Items)),
 	)
-	return accounts, nil
+	return result, nil
 }
 
 func (s *accountsService) DeleteAccount(ctx context.Context, userId string, accountIds []string) error {
@@ -250,4 +253,103 @@ func (s *accountsService) UpdateAccount(ctx context.Context, userId string, acco
 		zap.String("account_id", accountId),
 	)
 	return nil
+}
+
+// SyncAccounts 同步多个Azure账户信息
+func (s *accountsService) SyncAccounts(ctx context.Context, userId string, accountIds []string) (*v1.SyncAccountResp, error) {
+	result := &v1.SyncAccountResp{
+		SuccessAccounts: make([]v1.SyncAccountResult, 0),
+		FailedAccounts:  make([]v1.SyncAccountResult, 0),
+	}
+
+	// 检查哪些账户不存在
+	notExistIds, err := s.accountsRepo.GetNotExistAccountIDs(ctx, userId, accountIds)
+	if err != nil {
+		s.logger.Error("检查账户存在性失败",
+			zap.Error(err),
+			zap.String("userId", userId))
+		return nil, fmt.Errorf("检查账户失败: %w", err)
+	}
+
+	// 记录不存在的账户
+	for _, accountId := range notExistIds {
+		result.FailedAccounts = append(result.FailedAccounts, v1.SyncAccountResult{
+			AccountID: accountId,
+			Message:   "账户不存在",
+		})
+	}
+
+	// 获取存在的账户信息
+	accounts, err := s.accountsRepo.GetAccountsByIDs(ctx, userId, accountIds)
+	if err != nil {
+		s.logger.Error("获取账户信息失败",
+			zap.Error(err),
+			zap.String("userId", userId))
+		return nil, fmt.Errorf("获取账户信息失败: %w", err)
+	}
+
+	// 使用 errgroup 进行并发同步
+	g, ctx := errgroup.WithContext(ctx)
+	resultChan := make(chan v1.SyncAccountResult, len(accounts))
+
+	// 并发同步每个账户
+	for _, account := range accounts {
+		account := account // 创建副本用于 goroutine
+		g.Go(func() error {
+			syncResult := v1.SyncAccountResult{
+				AccountID: account.AccountID,
+			}
+
+			// 1. 同步订阅信息
+			subCount, err := s.subscriptionsService.SyncSubscriptions(ctx, userId, account.AccountID)
+			if err != nil {
+				syncResult.Message = fmt.Sprintf("同步订阅失败: %v", err)
+				resultChan <- syncResult
+				return nil // 不中断其他同步
+			}
+			syncResult.SubscriptionCount = subCount
+
+			// 2. 同步虚拟机信息
+			vmStats, err := s.virtualMachineService.SyncVMs(ctx, userId, account.AccountID)
+			if err != nil {
+				syncResult.Message = fmt.Sprintf("同步虚拟机失败: %v", err)
+				resultChan <- syncResult
+				return nil
+			}
+			syncResult.VMCount = vmStats.TotalVMs
+
+			// 同步成功
+			syncResult.Message = "同步成功"
+			resultChan <- syncResult
+			return nil
+		})
+	}
+
+	// 等待所有同步完成
+	go func() {
+		err := g.Wait()
+		if err != nil {
+			s.logger.Error("同步账户失败", zap.Error(err))
+			return
+		}
+		close(resultChan)
+	}()
+
+	// 收集结果
+	for res := range resultChan {
+		if strings.Contains(res.Message, "失败") {
+			result.FailedAccounts = append(result.FailedAccounts, res)
+			s.logger.Error("账户同步失败",
+				zap.String("accountId", res.AccountID),
+				zap.String("message", res.Message))
+		} else {
+			result.SuccessAccounts = append(result.SuccessAccounts, res)
+			s.logger.Info("账户同步成功",
+				zap.String("accountId", res.AccountID),
+				zap.Int("subscriptionCount", res.SubscriptionCount),
+				zap.Int("vmCount", res.VMCount))
+		}
+	}
+
+	return result, nil
 }
