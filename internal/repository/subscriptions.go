@@ -2,6 +2,7 @@ package repository
 
 import (
 	"azure-vm-backend/internal/model"
+	"azure-vm-backend/pkg/app"
 	"context"
 	"errors"
 	"gorm.io/gorm"
@@ -16,6 +17,8 @@ type SubscriptionsRepository interface {
 	GetSubscription(ctx context.Context, accountId, subscriptionId string) (*model.Subscriptions, error)
 	// DeleteSubscriptionsByAccountId 删除账号下的所有订阅
 	DeleteSubscriptionsByAccountId(ctx context.Context, accountId string) error
+	//ListAllUserSubscriptions 查询当前用户的所有azure丁页
+	ListAllUserSubscriptions(ctx context.Context, userId string, query *app.QueryOption) (*app.ListResult[*model.Subscriptions], error)
 }
 
 func NewSubscriptionsRepository(
@@ -119,4 +122,31 @@ func (r *subscriptionsRepository) GetSubscription(ctx context.Context, accountId
 // DeleteSubscriptionsByAccountId 删除账号下的所有订阅
 func (r *subscriptionsRepository) DeleteSubscriptionsByAccountId(ctx context.Context, accountId string) error {
 	return r.DB(ctx).Where("account_id = ?", accountId).Delete(&model.Subscriptions{}).Error
+}
+
+func (r *subscriptionsRepository) ListAllUserSubscriptions(ctx context.Context, userId string, query *app.QueryOption) (*app.ListResult[*model.Subscriptions], error) {
+	return app.WithPagination[*model.Subscriptions](
+		r.DB(ctx),
+		query,
+		func(db *gorm.DB) *gorm.DB {
+			// 构建基础查询
+			baseQuery := db.Model(&model.Subscriptions{}). // 使用 Model 而不是 Table
+									Joins("INNER JOIN accounts ON subscriptions.account_id = accounts.account_id AND accounts.deleted_at IS NULL").
+									Where("accounts.user_id = ?", userId)
+
+			// 处理搜索条件
+			if search, exists := query.Filters["search"]; exists && search != "" {
+				baseQuery = baseQuery.Where("subscriptions.display_name LIKE ?", "%"+search+"%")
+			}
+
+			// 设置默认排序
+			if query.SortBy == "" {
+				baseQuery = baseQuery.Order("subscriptions.created_at DESC")
+				// 清除默认排序设置，防止重复排序
+				query.SortOrder = ""
+			}
+
+			return baseQuery
+		},
+	)
 }

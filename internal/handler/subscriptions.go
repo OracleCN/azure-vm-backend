@@ -3,6 +3,7 @@ package handler
 import (
 	v1 "azure-vm-backend/api/v1"
 	"azure-vm-backend/internal/service"
+	"azure-vm-backend/pkg/app"
 	"github.com/gin-gonic/gin"
 	"net/http"
 )
@@ -168,4 +169,56 @@ func (h *SubscriptionsHandler) DeleteSubscriptions(ctx *gin.Context) {
 	}
 
 	v1.HandleSuccess(ctx, nil)
+}
+
+// ListSubscriptions internal/handler/subscriptions.go
+// Handler implementation remains largely the same, but simplified
+// ListSubscriptions godoc
+// @Summary 获取用户所有订阅列表
+// @Schemes
+// @Description 获取当前用户所有Azure账户下的订阅信息，支持分页和按显示名称搜索
+// @Tags 订阅模块
+// @Accept json
+// @Produce json
+// @Security Bearer
+// @Param query body app.QueryOption true "查询参数"
+// @Success 200 {object} v1.Response{data=app.ListResult[model.Subscriptions]}
+// @Router /api/subscriptions/list [post]
+func (h *SubscriptionsHandler) ListSubscriptions(ctx *gin.Context) {
+	// 获取用户ID
+	userId := GetUserIdFromCtx(ctx)
+	if userId == "" {
+		v1.HandleError(ctx, http.StatusUnauthorized, v1.ErrUnauthorized, nil)
+		return
+	}
+
+	// 解析请求参数
+	var req v1.ListSubscriptionsRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v1.HandleError(ctx, http.StatusBadRequest, v1.ErrBadRequest, nil)
+		return
+	}
+
+	// 转换为 QueryOption
+	query := &app.QueryOption{
+		Pagination: app.Pagination{
+			Page:     req.Page,
+			PageSize: req.PageSize,
+		},
+		Filters: make(map[string]string),
+	}
+
+	// 如果有搜索关键词，添加到 filters
+	if req.Search != "" {
+		query.Filters["search"] = req.Search
+	}
+
+	// 获取订阅列表
+	result, err := h.subscriptionsService.ListAllSubscriptions(ctx, userId, query)
+	if err != nil {
+		v1.HandleError(ctx, http.StatusInternalServerError, err, nil)
+		return
+	}
+
+	v1.HandleSuccess(ctx, result)
 }

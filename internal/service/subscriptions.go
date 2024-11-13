@@ -4,6 +4,7 @@ import (
 	v1 "azure-vm-backend/api/v1"
 	"azure-vm-backend/internal/model"
 	"azure-vm-backend/internal/repository"
+	"azure-vm-backend/pkg/app"
 	"azure-vm-backend/pkg/azure"
 	"context"
 	"go.uber.org/zap"
@@ -23,6 +24,9 @@ type SubscriptionsService interface {
 
 	// DeleteSubscriptions 删除指定账号的所有订阅信息
 	DeleteSubscriptions(ctx context.Context, userId, accountId string) error
+
+	// ListAllSubscriptions 获取用户所有Azure账户下的订阅信息
+	ListAllSubscriptions(ctx context.Context, userId string, query *app.QueryOption) (*app.ListResult[*model.Subscriptions], error)
 }
 
 func NewSubscriptionsService(
@@ -217,4 +221,22 @@ func (s *subscriptionsService) DeleteSubscriptions(ctx context.Context, userId, 
 	}
 
 	return nil
+}
+
+func (s *subscriptionsService) ListAllSubscriptions(ctx context.Context, userId string, query *app.QueryOption) (*app.ListResult[*model.Subscriptions], error) {
+	// 验证并填充查询选项的默认值
+	query = app.ValidateAndFillQueryOption(query)
+
+	// 调用repository层方法
+	result, err := s.subscriptionRepository.ListAllUserSubscriptions(ctx, userId, query)
+	if err != nil {
+		s.logger.Error("获取用户所有订阅列表失败",
+			zap.Error(err),
+			zap.String("userId", userId),
+			zap.Any("query", query),
+		)
+		return nil, v1.ErrInternalServerError
+	}
+
+	return result, nil
 }

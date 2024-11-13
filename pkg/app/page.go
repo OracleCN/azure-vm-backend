@@ -39,7 +39,8 @@ func WithPagination[T any](
 	queryDB := baseQuery(db)
 
 	// 计算总记录数
-	if err := queryDB.Count(&total).Error; err != nil {
+	countQuery := queryDB.Session(&gorm.Session{}) // 创建新会话避免影响原查询
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
@@ -74,14 +75,12 @@ func WithPagination[T any](
 	queryDB = queryDB.Offset(offset).Limit(query.PageSize)
 
 	// 应用排序
-	if query.SortBy != "" {
+	if query.SortBy != "" && query.SortOrder != "" {
 		direction := "DESC"
 		if query.SortOrder == "asc" {
 			direction = "ASC"
 		}
 		queryDB = queryDB.Order(query.SortBy + " " + direction)
-	} else {
-		queryDB = queryDB.Order("created_at DESC") // 默认排序
 	}
 
 	// 执行查询
