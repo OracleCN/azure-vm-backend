@@ -30,4 +30,7 @@ var (
 
 	// ErrPasswordError 密码错误
 	ErrPasswordError = newError(1008, "Password Error")
+
+	// ErrInvalidParams 无效参数
+	ErrInvalidParams = newError(1009, "Invalid Params")
 )

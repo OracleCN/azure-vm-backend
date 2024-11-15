@@ -8,6 +8,7 @@ import (
 	"azure-vm-backend/pkg/jwt"
 	"azure-vm-backend/pkg/log"
 	"azure-vm-backend/pkg/server/http"
+
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
 	swaggerfiles "github.com/swaggo/files"
@@ -22,6 +23,7 @@ func NewHTTPServer(
 	accountsHandler *handler.AccountsHandler,
 	subHandler *handler.SubscriptionsHandler,
 	vmHandler *handler.VirtualMachineHandler,
+	vmRegionHandler *handler.VmRegionHandler,
 ) *http.Server {
 	gin.SetMode(gin.DebugMode)
 	s := http.NewServer(
@@ -115,6 +117,18 @@ func NewHTTPServer(
 
 			// 更新虚拟机dns标签
 			strictAuthRouter.POST("/vms/update/dns/:accountId/:ID", vmHandler.UpdateDNSLabel)
+
+			// 获取区域列表
+			strictAuthRouter.GET("/vm/regions", vmRegionHandler.ListVmRegions)
+
+			// 获取单个区域详情
+			strictAuthRouter.GET("/vm/regions/:id", vmRegionHandler.GetVmRegion)
+
+			// 同步区域信息
+			strictAuthRouter.POST("/vm/regions/sync", vmRegionHandler.SyncVmRegions)
+
+			// 更新区域状态
+			strictAuthRouter.PUT("/vm/regions/:id", vmRegionHandler.UpdateVmRegion)
 		}
 	}
 

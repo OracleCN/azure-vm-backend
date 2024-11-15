@@ -42,7 +42,10 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 	accountsHandler := handler.NewAccountsHandler(handlerHandler, accountsService)
 	subscriptionsHandler := handler.NewSubscriptionsHandler(handlerHandler, subscriptionsService)
 	virtualMachineHandler := handler.NewVirtualMachineHandler(handlerHandler, virtualMachineService)
-	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler, virtualMachineHandler)
+	vmRegionRepository := repository.NewVmRegionRepository(repositoryRepository)
+	vmRegionService := service.NewVmRegionService(serviceService, vmRegionRepository)
+	vmRegionHandler := handler.NewVmRegionHandler(handlerHandler, vmRegionService)
+	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler, virtualMachineHandler, vmRegionHandler)
 	job := server.NewJob(logger)
 	appApp := newApp(httpServer, job)
 	return appApp, func() {
@@ -51,11 +54,11 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 
 // wire.go:
 
-var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository, repository.NewSubscriptionsRepository, repository.NewVirtualMachineRepository)
+var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository, repository.NewSubscriptionsRepository, repository.NewVirtualMachineRepository, repository.NewVmRegionRepository, repository.NewVmImageRepository, repository.NewVmSizeRepository)
 
-var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService, service.NewSubscriptionsService, service.NewVirtualMachineService)
+var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService, service.NewSubscriptionsService, service.NewVirtualMachineService, service.NewVmRegionService, service.NewVmImageService, service.NewVmSizeService)
 
-var handlerSet = wire.NewSet(handler.NewHandler, handler.NewUserHandler, handler.NewAccountsHandler, handler.NewSubscriptionsHandler, handler.NewVirtualMachineHandler)
+var handlerSet = wire.NewSet(handler.NewHandler, handler.NewUserHandler, handler.NewAccountsHandler, handler.NewSubscriptionsHandler, handler.NewVirtualMachineHandler, handler.NewVmRegionHandler, handler.NewVmImageHandler, handler.NewVmSizeHandler)
 
 var serverSet = wire.NewSet(server.NewHTTPServer, server.NewJob)
 

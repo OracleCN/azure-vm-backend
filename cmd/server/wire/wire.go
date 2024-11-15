@@ -13,6 +13,7 @@ import (
 	"azure-vm-backend/pkg/log"
 	"azure-vm-backend/pkg/server/http"
 	"azure-vm-backend/pkg/sid"
+
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 )
@@ -26,6 +27,9 @@ var repositorySet = wire.NewSet(
 	repository.NewAccountsRepository,
 	repository.NewSubscriptionsRepository,
 	repository.NewVirtualMachineRepository,
+	repository.NewVmRegionRepository,
+	repository.NewVmImageRepository,
+	repository.NewVmSizeRepository,
 )
 
 var serviceSet = wire.NewSet(
@@ -34,6 +38,9 @@ var serviceSet = wire.NewSet(
 	service.NewAccountsService,
 	service.NewSubscriptionsService,
 	service.NewVirtualMachineService,
+	service.NewVmRegionService,
+	service.NewVmImageService,
+	service.NewVmSizeService,
 )
 
 var handlerSet = wire.NewSet(
@@ -42,6 +49,9 @@ var handlerSet = wire.NewSet(
 	handler.NewAccountsHandler,
 	handler.NewSubscriptionsHandler,
 	handler.NewVirtualMachineHandler,
+	handler.NewVmRegionHandler,
+	handler.NewVmImageHandler,
+	handler.NewVmSizeHandler,
 )
 
 var serverSet = wire.NewSet(
