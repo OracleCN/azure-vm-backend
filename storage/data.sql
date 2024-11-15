@@ -134,3 +134,89 @@ create index idx_azure_accounts_subscription_status
 create index idx_azure_accounts_user_id
     on accounts (user_id);
 
+-- vm_regions表
+CREATE TABLE IF NOT EXISTS vm_regions (
+                                          id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                          created_at DATETIME NOT NULL,
+                                          updated_at DATETIME NOT NULL,
+                                          deleted_at DATETIME,
+                                          region_id VARCHAR(64) NOT NULL UNIQUE,
+                                          display_name VARCHAR(128) NOT NULL,
+                                          name VARCHAR(64) NOT NULL,
+                                          location VARCHAR(64) NOT NULL,
+                                          region_type VARCHAR(32) NOT NULL,
+                                          category VARCHAR(32) NOT NULL,
+                                          available BOOLEAN NOT NULL DEFAULT 1,
+                                          enabled BOOLEAN NOT NULL DEFAULT 1,
+                                          last_sync_at DATETIME NOT NULL,
+                                          paired_region VARCHAR(64),
+                                          resource_types TEXT,
+                                          metadata TEXT
+);
+
+CREATE INDEX idx_vm_regions_deleted_at ON vm_regions(deleted_at);
+CREATE INDEX idx_vm_regions_name ON vm_regions(name);
+CREATE INDEX idx_vm_regions_location ON vm_regions(location);
+
+
+
+-- vm_images表
+CREATE TABLE IF NOT EXISTS vm_images (
+                                         id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                         created_at DATETIME NOT NULL,
+                                         updated_at DATETIME NOT NULL,
+                                         deleted_at DATETIME,
+                                         image_id VARCHAR(128) NOT NULL UNIQUE,
+                                         name VARCHAR(128) NOT NULL,
+                                         region_id VARCHAR(64) NOT NULL,
+                                         publisher VARCHAR(128) NOT NULL,
+                                         offer VARCHAR(128) NOT NULL,
+                                         sku VARCHAR(128) NOT NULL,
+                                         version VARCHAR(64) NOT NULL,
+                                         os_type VARCHAR(32) NOT NULL,
+                                         category VARCHAR(32) NOT NULL,
+                                         available BOOLEAN NOT NULL DEFAULT 1,
+                                         description TEXT,
+                                         last_sync_at DATETIME NOT NULL,
+                                         requirements TEXT,
+                                         features TEXT,
+                                         metadata TEXT
+);
+
+CREATE INDEX idx_vm_images_deleted_at ON vm_images(deleted_at);
+CREATE INDEX idx_vm_images_region_id ON vm_images(region_id);
+CREATE INDEX idx_vm_images_os_type ON vm_images(os_type);
+CREATE INDEX idx_vm_images_publisher ON vm_images(publisher);
+
+
+
+-- vm_sizes表
+CREATE TABLE IF NOT EXISTS vm_sizes (
+                                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                        created_at DATETIME NOT NULL,
+                                        updated_at DATETIME NOT NULL,
+                                        deleted_at DATETIME,
+                                        size_id VARCHAR(64) NOT NULL UNIQUE,
+                                        name VARCHAR(64) NOT NULL,
+                                        region_id VARCHAR(64) NOT NULL,
+                                        category VARCHAR(32) NOT NULL,
+                                        family VARCHAR(32) NOT NULL,
+                                        number_of_cores INTEGER NOT NULL,
+                                        memory_in_gb FLOAT NOT NULL,
+                                        max_data_disks INTEGER NOT NULL,
+                                        os_disk_size_in_gb INTEGER NOT NULL,
+                                        available BOOLEAN NOT NULL DEFAULT 1,
+                                        enabled BOOLEAN NOT NULL DEFAULT 1,
+                                        last_sync_at DATETIME NOT NULL,
+                                        network_bandwidth VARCHAR(32),
+                                        temporary_disk_size_in_gb INTEGER,
+                                        price_per_hour DECIMAL(10,4),
+                                        accelerated_networking BOOLEAN DEFAULT 0,
+                                        capabilities TEXT,
+                                        metadata TEXT
+);
+
+CREATE INDEX idx_vm_sizes_deleted_at ON vm_sizes(deleted_at);
+CREATE INDEX idx_vm_sizes_region_id ON vm_sizes(region_id);
+CREATE INDEX idx_vm_sizes_category ON vm_sizes(category);
+CREATE INDEX idx_vm_sizes_family ON vm_sizes(family);
