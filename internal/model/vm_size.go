@@ -22,5 +22,5 @@ type VmSize struct {
 }
 
 func (m *VmSize) TableName() string {
-	return "vm_size"
+	return "vm_sizes"
 }

@@ -18,5 +18,5 @@ type VmRegion struct {
 }
 
 func (m *VmRegion) TableName() string {
-	return "vm_region"
+	return "vm_regions"
 }

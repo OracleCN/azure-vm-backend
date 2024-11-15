@@ -123,12 +123,6 @@ func NewHTTPServer(
 
 			// 获取单个区域详情
 			strictAuthRouter.GET("/vm/regions/:id", vmRegionHandler.GetVmRegion)
-
-			// 同步区域信息
-			strictAuthRouter.POST("/vm/regions/sync", vmRegionHandler.SyncVmRegions)
-
-			// 更新区域状态
-			strictAuthRouter.PUT("/vm/regions/:id", vmRegionHandler.UpdateVmRegion)
 		}
 	}
 

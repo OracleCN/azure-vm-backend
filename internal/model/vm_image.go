@@ -21,5 +21,5 @@ type VmImage struct {
 }
 
 func (m *VmImage) TableName() string {
-	return "vm_image"
+	return "vm_images"
 }
