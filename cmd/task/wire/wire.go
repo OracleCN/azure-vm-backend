@@ -7,6 +7,7 @@ import (
 	"azure-vm-backend/internal/server"
 	"azure-vm-backend/pkg/app"
 	"azure-vm-backend/pkg/log"
+
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 )
@@ -21,7 +22,7 @@ func newApp(
 ) *app.App {
 	return app.NewApp(
 		app.WithServer(task),
-		app.WithName("demo-task"),
+		app.WithName("azure-task"),
 	)
 }
 
