@@ -31,5 +31,5 @@ var serverSet = wire.NewSet(server.NewTask)
 func newApp(
 	task *server.Task,
 ) *app.App {
-	return app.NewApp(app.WithServer(task), app.WithName("demo-task"))
+	return app.NewApp(app.WithServer(task), app.WithName("azure-task"))
 }
