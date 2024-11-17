@@ -64,10 +64,10 @@ var serverSet = wire.NewSet(
 func newApp(
 	httpServer *http.Server,
 	job *server.Job,
-	task *server.Task,
+	// task *server.Task,
 ) *app.App {
 	return app.NewApp(
-		app.WithServer(httpServer, job, task),
+		app.WithServer(httpServer, job),
 		app.WithName("server"),
 	)
 }

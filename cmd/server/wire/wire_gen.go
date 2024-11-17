@@ -45,10 +45,12 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 	vmRegionRepository := repository.NewVmRegionRepository(repositoryRepository)
 	vmRegionService := service.NewVmRegionService(serviceService, vmRegionRepository)
 	vmRegionHandler := handler.NewVmRegionHandler(handlerHandler, vmRegionService)
-	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler, virtualMachineHandler, vmRegionHandler)
+	vmImageRepository := repository.NewVmImageRepository(repositoryRepository)
+	vmImageService := service.NewVmImageService(serviceService, vmImageRepository, accountsRepository, subscriptionsRepository)
+	vmImageHandler := handler.NewVmImageHandler(handlerHandler, vmImageService)
+	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler, virtualMachineHandler, vmRegionHandler, vmImageHandler)
 	job := server.NewJob(logger)
-	task := server.NewTask(logger, accountsService)
-	appApp := newApp(httpServer, job, task)
+	appApp := newApp(httpServer, job)
 	return appApp, func() {
 	}, nil
 }
@@ -67,7 +69,7 @@ var serverSet = wire.NewSet(server.NewHTTPServer, server.NewJob, server.NewTask)
 func newApp(
 	httpServer *http.Server,
 	job *server.Job,
-	task *server.Task,
+
 ) *app.App {
-	return app.NewApp(app.WithServer(httpServer, job, task), app.WithName("server"))
+	return app.NewApp(app.WithServer(httpServer, job), app.WithName("server"))
 }

@@ -24,6 +24,7 @@ func NewHTTPServer(
 	subHandler *handler.SubscriptionsHandler,
 	vmHandler *handler.VirtualMachineHandler,
 	vmRegionHandler *handler.VmRegionHandler,
+	vmImageHandler *handler.VmImageHandler,
 ) *http.Server {
 	gin.SetMode(gin.DebugMode)
 	s := http.NewServer(
@@ -123,6 +124,13 @@ func NewHTTPServer(
 
 			// 获取单个区域详情
 			strictAuthRouter.GET("/vm/regions/:id", vmRegionHandler.GetVmRegion)
+
+			// 镜像接口
+			strictAuthRouter.GET("/vm/images", vmImageHandler.ListVmImages)
+			// 获取单个镜像详情
+			strictAuthRouter.GET("/vm/images/:id", vmImageHandler.GetVmImage)
+			// 同步镜像
+			strictAuthRouter.POST("/vm/images/sync", vmImageHandler.SyncVmImages)
 		}
 	}
 
