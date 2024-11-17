@@ -47,7 +47,7 @@ func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), err
 	vmRegionHandler := handler.NewVmRegionHandler(handlerHandler, vmRegionService)
 	httpServer := server.NewHTTPServer(logger, viperViper, jwtJWT, userHandler, accountsHandler, subscriptionsHandler, virtualMachineHandler, vmRegionHandler)
 	job := server.NewJob(logger)
-	task := server.NewTask(logger)
+	task := server.NewTask(logger, accountsService)
 	appApp := newApp(httpServer, job, task)
 	return appApp, func() {
 	}, nil

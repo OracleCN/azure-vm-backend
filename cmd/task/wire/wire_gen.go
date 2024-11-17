@@ -7,9 +7,13 @@
 package wire
 
 import (
+	"azure-vm-backend/internal/repository"
 	"azure-vm-backend/internal/server"
+	"azure-vm-backend/internal/service"
 	"azure-vm-backend/pkg/app"
+	"azure-vm-backend/pkg/jwt"
 	"azure-vm-backend/pkg/log"
+	"azure-vm-backend/pkg/sid"
 	"github.com/google/wire"
 	"github.com/spf13/viper"
 )
@@ -17,13 +21,29 @@ import (
 // Injectors from wire.go:
 
 func NewWire(viperViper *viper.Viper, logger *log.Logger) (*app.App, func(), error) {
-	task := server.NewTask(logger)
+	db := repository.NewDB(viperViper, logger)
+	repositoryRepository := repository.NewRepository(logger, db)
+	transaction := repository.NewTransaction(repositoryRepository)
+	sidSid := sid.NewSid()
+	jwtJWT := jwt.NewJwt(viperViper)
+	serviceService := service.NewService(transaction, logger, sidSid, jwtJWT)
+	accountsRepository := repository.NewAccountsRepository(repositoryRepository)
+	subscriptionsRepository := repository.NewSubscriptionsRepository(repositoryRepository)
+	subscriptionsService := service.NewSubscriptionsService(serviceService, subscriptionsRepository, accountsRepository)
+	virtualMachineRepository := repository.NewVirtualMachineRepository(repositoryRepository)
+	virtualMachineService := service.NewVirtualMachineService(serviceService, virtualMachineRepository, accountsRepository, subscriptionsRepository, logger)
+	accountsService := service.NewAccountsService(serviceService, accountsRepository, subscriptionsService, virtualMachineService)
+	task := server.NewTask(logger, accountsService)
 	appApp := newApp(task)
 	return appApp, func() {
 	}, nil
 }
 
 // wire.go:
+
+var repositorySet = wire.NewSet(repository.NewDB, repository.NewRepository, repository.NewTransaction, repository.NewUserRepository, repository.NewAccountsRepository, repository.NewSubscriptionsRepository, repository.NewVirtualMachineRepository, repository.NewVmRegionRepository, repository.NewVmImageRepository, repository.NewVmSizeRepository)
+
+var serviceSet = wire.NewSet(service.NewService, service.NewUserService, service.NewAccountsService, service.NewSubscriptionsService, service.NewVirtualMachineService, service.NewVmRegionService, service.NewVmImageService, service.NewVmSizeService)
 
 var serverSet = wire.NewSet(server.NewTask)
 

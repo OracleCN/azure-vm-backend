@@ -1,21 +1,25 @@
 package server
 
 import (
+	"azure-vm-backend/internal/service"
 	"azure-vm-backend/pkg/log"
 	"context"
+	"time"
+
 	"github.com/go-co-op/gocron"
 	"go.uber.org/zap"
-	"time"
 )
 
 type Task struct {
-	log       *log.Logger
-	scheduler *gocron.Scheduler
+	log            *log.Logger
+	scheduler      *gocron.Scheduler
+	accountService service.AccountsService
 }
 
-func NewTask(log *log.Logger) *Task {
+func NewTask(log *log.Logger, accountService service.AccountsService) *Task {
 	return &Task{
-		log: log,
+		log:            log,
+		accountService: accountService,
 	}
 }
 func (t *Task) Start(ctx context.Context) error {
@@ -28,6 +32,7 @@ func (t *Task) Start(ctx context.Context) error {
 	// if you are in China, you will need to change the time zone as follows
 	// t.scheduler = gocron.NewScheduler(time.FixedZone("PRC", 8*60*60))
 
+	// 查询用户的同步设置 一次性加载 动态设置 corn
 	_, err := t.scheduler.CronWithSeconds("0/3 * * * * *").Do(func() {
 		t.log.Info("I'm a Task1.")
 	})
